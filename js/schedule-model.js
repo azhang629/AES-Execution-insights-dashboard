@@ -134,7 +134,11 @@
       var predIds = [];
       var seen = {};
       predStr.split(',').forEach(function (s) {
-        var id = s.trim();
+        var raw = s.trim();
+        if (!raw) return;
+        // Strip relationship types (FS, SS, FF, SF) and lag notation (+5d, -2d, etc.)
+        var id = raw.replace(/\s*(FS|SS|FF|SF)\s*/i, '').replace(/[+\-]\s*\d+(\.\d+)?\s*[dDhH]?\s*$/, '').trim();
+        if (!id) id = raw;
         if (id && !seen[id]) { predIds.push(id); seen[id] = true; }
       });
 

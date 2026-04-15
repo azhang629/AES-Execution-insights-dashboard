@@ -53,53 +53,75 @@
       t.calDurationMs = (t.early_end && t.early_start)
         ? Math.max(t.early_end - t.early_start, 0)
         : Math.max((t.cal_duration_hr || t.duration_hr || 0) * 3600000, 0);
-
-      // Implied lag from ALICE dates for each predecessor
-      var preds = sched.predByTaskId[t.task_id] || [];
-      for (var pi = 0; pi < preds.length; pi++) {
-        var pt = sched.taskById[preds[pi].pred_task_id];
-        if (pt && pt.early_end && t.early_start) {
-          preds[pi]._impliedLagMs = Math.max(t.early_start - pt.early_end, 0);
-        } else {
-          preds[pi]._impliedLagMs = 0;
-        }
-      }
     }
 
     var sorted = topoSort(taskIds, sched.predByTaskId);
 
-    // ── Forward pass (uses implied lags) ──
+    // ── Forward pass: longest distance from any start node ──
+    // dist[id] = longest path length (ms) from project start to end of this task
+    var dist = {};
+    var lpPred = {}; // tracks which predecessor gave the longest distance
+
     for (var fi = 0; fi < sorted.length; fi++) {
       var fid = sorted[fi];
       var ft = sched.taskById[fid];
       if (!ft) continue;
 
       var fpreds = sched.predByTaskId[fid] || [];
-      var maxPredEnd = null;
+      var bestDist = 0;
+      var bestPred = null;
 
       for (var fpi = 0; fpi < fpreds.length; fpi++) {
-        var fpt = sched.taskById[fpreds[fpi].pred_task_id];
-        if (fpt && fpt.cpmEF) {
-          var arrival = new Date(fpt.cpmEF.getTime() + (fpreds[fpi]._impliedLagMs || 0));
-          if (!maxPredEnd || arrival > maxPredEnd) maxPredEnd = arrival;
+        var predId = fpreds[fpi].pred_task_id;
+        var fpt = sched.taskById[predId];
+        if (!fpt) continue;
+
+        // Implied lag from ALICE's actual dates
+        var lagMs = 0;
+        if (fpt.early_end && ft.early_start) {
+          lagMs = Math.max(ft.early_start - fpt.early_end, 0);
+        }
+
+        var predDist = (dist[predId] || 0) + lagMs;
+        if (predDist > bestDist) {
+          bestDist = predDist;
+          bestPred = predId;
         }
       }
 
-      ft.cpmES = maxPredEnd || ft.early_start || sched.projectStart;
+      dist[fid] = bestDist + ft.calDurationMs;
+      lpPred[fid] = bestPred;
+
+      // Also compute cpmES/cpmEF for backward pass
+      ft.cpmES = ft.early_start || sched.projectStart;
       ft.cpmEF = ft.cpmES
         ? new Date(ft.cpmES.getTime() + ft.calDurationMs)
         : null;
     }
 
+    // Find the project-end task (longest distance from start)
     var cpmProjectEnd = null;
-    for (var ei = 0; ei < tasks.length; ei++) {
-      if (tasks[ei].cpmEF && (!cpmProjectEnd || tasks[ei].cpmEF > cpmProjectEnd)) {
-        cpmProjectEnd = tasks[ei].cpmEF;
+    var lpEndId = null;
+    var maxDist = 0;
+    for (var ei = 0; ei < taskIds.length; ei++) {
+      var eid = taskIds[ei];
+      if ((dist[eid] || 0) > maxDist) {
+        maxDist = dist[eid];
+        lpEndId = eid;
+      }
+      var et = sched.taskById[eid];
+      if (et && et.cpmEF && (!cpmProjectEnd || et.cpmEF > cpmProjectEnd)) {
+        cpmProjectEnd = et.cpmEF;
       }
     }
     sched.cpmProjectEnd = cpmProjectEnd;
 
-    // ── Backward pass (uses implied lags) ──
+    // Prefer MC milestone as end point if it exists
+    if (sched.mcTask && dist[sched.mcTask.task_id]) {
+      lpEndId = sched.mcTask.task_id;
+    }
+
+    // ── Backward pass (using ALICE's actual dates for late start/finish) ──
     for (var bi = sorted.length - 1; bi >= 0; bi--) {
       var bid = sorted[bi];
       var bt = sched.taskById[bid];
@@ -111,12 +133,11 @@
       for (var bsi = 0; bsi < bsuccs.length; bsi++) {
         var bst = sched.taskById[bsuccs[bsi].task_id];
         if (!bst || !bst.cpmLS) continue;
-        var sPreds = sched.predByTaskId[bsuccs[bsi].task_id] || [];
-        var lag = 0;
-        for (var lk = 0; lk < sPreds.length; lk++) {
-          if (sPreds[lk].pred_task_id === bid) { lag = sPreds[lk]._impliedLagMs || 0; break; }
+        var lag2 = 0;
+        if (bt.early_end && bst.early_start) {
+          lag2 = Math.max(bst.early_start - bt.early_end, 0);
         }
-        var departure = new Date(bst.cpmLS.getTime() - lag);
+        var departure = new Date(bst.cpmLS.getTime() - lag2);
         if (!minSuccStart || departure < minSuccStart) minSuccStart = departure;
       }
 
@@ -125,12 +146,14 @@
         ? new Date(bt.cpmLF.getTime() - bt.calDurationMs)
         : null;
 
+      // CPM-computed float
       if (bt.cpmEF && bt.cpmLF) {
         bt.cpmFloatDays = (bt.cpmLF - bt.cpmEF) / MS_PER_DAY;
       } else {
         bt.cpmFloatDays = null;
       }
 
+      // ALICE's own float from its dates or reported slack
       if (bt.late_end && bt.early_end) {
         bt.aliceFloatDays = (bt.late_end - bt.early_end) / MS_PER_DAY;
       } else {
@@ -140,10 +163,10 @@
       bt.cpmCritical = bt.cpmFloatDays !== null && bt.cpmFloatDays <= 1;
     }
 
-    // ── Method 1: Longest Path (driving predecessor trace) ──
-    sched.drivingPath = traceDrivingPath(sched);
+    // ── Method 1: Longest Path via distance-tracked predecessor chain ──
+    sched.drivingPath = buildLongestPath(sched, lpPred, lpEndId, dist);
 
-    // ── Method 2: Zero Float paths (pre-computed at default tolerance 0) ──
+    // ── Method 2: Zero Float (pre-computed at default tolerance 0) ──
     sched.zeroFloatResult = findZeroFloatPaths(sched, 0);
 
     // ── Validation stats ──
@@ -172,60 +195,61 @@
     return sched;
   };
 
-  // ── Longest Path: trace driving predecessors backward from project end ──
-  function traceDrivingPath(sched) {
-    var tasks = Object.values(sched.taskById);
-    var endTask = null;
-    for (var i = 0; i < tasks.length; i++) {
-      if (!tasks[i].early_end) continue;
-      if (!endTask || tasks[i].early_end > endTask.early_end) endTask = tasks[i];
-    }
-    if (!endTask) return [];
-
-    var visited = {};
+  // ── Longest Path: trace backward through the longest-distance predecessor chain ──
+  function buildLongestPath(sched, lpPred, endId, dist) {
+    if (!endId) return [];
     var path = [];
-    var current = endTask;
-    var maxSteps = tasks.length;
+    var visited = {};
+    var current = endId;
+    var maxSteps = Object.keys(sched.taskById).length;
 
-    while (current && !visited[current.task_id] && maxSteps-- > 0) {
-      visited[current.task_id] = true;
-      current.onDrivingPath = true;
-      path.unshift(current);
-
-      var preds = sched.predByTaskId[current.task_id] || [];
-      if (!preds.length) break;
-
-      var driver = null;
-      var driverArrival = null;
-      for (var p = 0; p < preds.length; p++) {
-        var pt = sched.taskById[preds[p].pred_task_id];
-        if (pt && pt.early_end) {
-          var arrival = pt.early_end.getTime() + (preds[p]._impliedLagMs || 0);
-          if (!driver || arrival > driverArrival) {
-            driver = pt;
-            driverArrival = arrival;
-          }
-        }
+    while (current && !visited[current] && maxSteps-- > 0) {
+      visited[current] = true;
+      var task = sched.taskById[current];
+      if (task) {
+        task.onDrivingPath = true;
+        path.unshift(task);
       }
-      current = driver;
+      current = lpPred[current] || null;
     }
 
     return path.filter(function (t) { return !SKIP_RE.test(t.task_name); });
   }
 
-  // ── Zero Float: find all activities within tolerance, group into connected paths ──
+  // ── Zero Float: use ALICE's own float data, group into connected paths ──
   function findZeroFloatPaths(sched, toleranceDays) {
     var tasks = Object.values(sched.taskById);
     var zfTasks = {};
+    var toleranceHrs = toleranceDays * 8;
 
     for (var i = 0; i < tasks.length; i++) {
       var t = tasks[i];
       if (!t.early_start || !t.early_end) continue;
       if (SKIP_RE.test(t.task_name)) continue;
 
-      var floatVal = t.cpmFloatDays;
-      if (floatVal === null) continue;
-      if (Math.abs(floatVal) <= toleranceDays) {
+      // Primary: use ALICE's reported total float
+      var aliceFloatHrs = Math.abs(t.total_float_hr);
+      var isAliceCrit = (t.isCritical === true);
+
+      // Secondary: use ALICE's late dates if available
+      var dateFloatDays = null;
+      if (t.late_end && t.early_end) {
+        dateFloatDays = (t.late_end - t.early_end) / MS_PER_DAY;
+      }
+
+      var isZeroFloat = false;
+
+      // Task qualifies if any of these are true:
+      if (isAliceCrit) isZeroFloat = true;
+      if (aliceFloatHrs <= toleranceHrs) isZeroFloat = true;
+      if (dateFloatDays !== null && Math.abs(dateFloatDays) <= toleranceDays) isZeroFloat = true;
+
+      // Also include CPM-computed zero-float as a fallback
+      if (t.cpmFloatDays !== null && Math.abs(t.cpmFloatDays) <= toleranceDays) {
+        isZeroFloat = true;
+      }
+
+      if (isZeroFloat) {
         zfTasks[t.task_id] = t;
       }
     }
@@ -306,24 +330,30 @@
     }
 
     var notes = [];
-    if (zf.fragmented) {
-      notes.push('Zero Float found ' + zf.pathCount + ' disconnected path fragments (' + zf.totalTasks + ' total activities). This indicates parallel near-critical paths.');
-    } else if (zf.pathCount === 1) {
-      notes.push('Zero Float found a single continuous path of ' + zf.totalTasks + ' activities.');
+    if (zf.totalTasks > 0) {
+      if (zf.fragmented) {
+        notes.push('Zero Float found ' + zf.pathCount + ' disconnected path fragments totaling ' + zf.totalTasks + ' activities. Multiple parallel critical paths exist.');
+      } else {
+        notes.push('Zero Float found a single continuous path of ' + zf.totalTasks + ' activities.');
+      }
     } else {
-      notes.push('No activities with float within tolerance.');
+      notes.push('No activities found with float within ' + toleranceDays + 'd tolerance. Try increasing the tolerance slider.');
     }
 
-    notes.push('Longest Path traced ' + lp.length + ' driving activities from project end.');
+    notes.push('Longest Path traced ' + lp.length + ' driving activities from project end backward through driving predecessors.');
 
     if (both > 0) {
-      notes.push(both + ' activities appear in both methods.');
+      notes.push(both + ' activities appear in both methods (' + Math.round(both / Math.max(lp.length, 1) * 100) + '% of longest path).');
     }
     if (lpOnly > 0) {
-      notes.push(lpOnly + ' activities are on the Longest Path but have non-zero float (' + toleranceDays + 'd tolerance). These likely have float because multiple paths converge, giving them scheduling flexibility despite being on the driving chain.');
+      notes.push(lpOnly + ' activities are on the Longest Path but have non-zero float. These are on the driving chain but have scheduling flexibility because multiple paths converge at their successors.');
     }
     if (zfOnly > 0) {
-      notes.push(zfOnly + ' activities have zero float but are NOT on the Longest Path. These sit on parallel critical paths that are equally constrained but not driving the project finish milestone.');
+      notes.push(zfOnly + ' activities have zero float but are NOT on the Longest Path. These sit on parallel critical paths that are equally time-constrained but do not drive the selected finish milestone.');
+    }
+
+    if (lp.length > 0 && zf.totalTasks > 0 && both === 0) {
+      notes.push('WARNING: Zero overlap between methods. This typically means the network logic is sparse or ALICE used resource constraints that shifted the critical path away from the pure-logic longest path.');
     }
 
     return {
