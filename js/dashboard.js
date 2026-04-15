@@ -298,206 +298,261 @@
   }
 
   // ── Critical Path ──
+  var _cpCache = null;
+  var _cpMethod = 'longest';
+
   function renderCriticalPath(R) {
-    var diffs = R.diffs;
     var baseline = R.baseline, optimized = R.optimized;
-
-    // ── CPM Validation Summary ──
-    renderCPMValidation(baseline, optimized, diffs);
-
-    // ── Discrepancies Table ──
-    renderCPMDiscrepancies(baseline, optimized);
-
-    // ── Critical Path Shifts (using CPM-validated flags) ──
-    var gainedFloat   = diffs.filter(function (d) { return d.bCpmCritical && !d.oCpmCritical; }).sort(function (a, b) { return a.finishVar - b.finishVar; });
-    var stillCritical = diffs.filter(function (d) { return d.bCpmCritical && d.oCpmCritical; }).sort(function (a, b) { return a.finishVar - b.finishVar; });
-    var becameCritical = diffs.filter(function (d) { return !d.bCpmCritical && d.oCpmCritical; });
-
-    if (!gainedFloat.length && !stillCritical.length && !becameCritical.length) {
-      gainedFloat   = diffs.filter(function (d) { return d.bCritical && !d.oCritical; }).sort(function (a, b) { return a.finishVar - b.finishVar; });
-      stillCritical = diffs.filter(function (d) { return d.bCritical && d.oCritical; }).sort(function (a, b) { return a.finishVar - b.finishVar; });
-      becameCritical = diffs.filter(function (d) { return !d.bCritical && d.oCritical; });
-    }
-
-    document.getElementById('cp-stats-grid').innerHTML =
-      '<div class="stat-card success"><div class="stat-label">Moved Off Critical Path</div><div class="stat-value">' + gainedFloat.length + '</div><div class="stat-detail">Now have schedule buffer</div></div>' +
-      '<div class="stat-card warn"><div class="stat-label">Moved Onto Critical Path</div><div class="stat-value">' + becameCritical.length + '</div><div class="stat-detail">Now driving project end</div></div>' +
-      '<div class="stat-card accent"><div class="stat-label">Near-Critical in Both</div><div class="stat-value">' + stillCritical.length + '</div><div class="stat-detail">Remain on or near driving path</div></div>';
-
-    function renderCPList(el, items, limit) {
-      limit = limit || 15;
-      if (!items.length) { el.innerHTML = '<div style="padding:16px;color:var(--text-muted);font-size:13px">None identified.</div>'; return; }
-      el.innerHTML = items.slice(0, limit).map(function (d) {
-        var delta = -d.finishVar;
-        return '<div class="cp-row"><div class="cp-code">' + (d.task_code || '') + '</div><div class="cp-name" title="' + d.task_name + '">' + (d.task_name.length > 45 ? d.task_name.substring(0, 45) + '\u2026' : d.task_name) + '</div><div class="cp-block">' + (d.blockNotation || d.blockNum) + '</div><div class="cp-delta ' + (delta > 0 ? 'better' : delta < 0 ? 'worse' : '') + '">' + (delta > 0 ? '\u25B2 ' : delta < 0 ? '\u25BC ' : '') + Math.abs(delta).toFixed(1) + 'd</div><div class="cp-status ' + (delta > 0 ? 'gained' : delta < 0 ? 'lost' : 'same') + '">' + (delta > 0 ? 'Better' : delta < 0 ? 'Slipped' : 'Same') + '</div></div>';
-      }).join('');
-    }
-
-    renderCPList(document.getElementById('cp-gained-float'), gainedFloat.concat(becameCritical));
-    renderCPList(document.getElementById('cp-near-critical'), stillCritical);
-
-    // ── Store schedule refs for the filter-driven Gantt ──
     _cpCache = { baseline: baseline, optimized: optimized };
-    ATT.updateCPGantt();
+
+    var bLP = (baseline.drivingPath || []).length;
+    var oLP = (optimized.drivingPath || []).length;
+
+    document.getElementById('cp-top-stats').innerHTML =
+      '<div class="stat-card accent"><div class="stat-label">Baseline Critical Tasks</div><div class="stat-value">' + bLP + '</div><div class="stat-detail">Activities driving baseline finish</div></div>' +
+      '<div class="stat-card accent"><div class="stat-label">Optimized Critical Tasks</div><div class="stat-value">' + oLP + '</div><div class="stat-detail">Activities driving optimized finish</div></div>';
+
+    _cpMethod = 'longest';
+    ATT.updateCPMethod();
   }
 
-  var _cpCache = null;
-
-  ATT.updateCPGantt = function () {
-    if (!_cpCache) return;
-    var sel = document.getElementById('cp-gantt-filter');
-    var scenario = sel ? sel.value : 'optimized';
-    var sched = scenario === 'baseline' ? _cpCache.baseline : _cpCache.optimized;
-    var path = (sched.drivingPath || []).filter(function (t) {
-      return t.early_start && t.early_end;
-    });
-
-    if (!path.length) {
-      var fallback = Object.values(sched.taskById)
-        .filter(function (t) { return t.cpmCritical && t.early_start && t.early_end; })
-        .sort(function (a, b) { return a.early_start - b.early_start; });
-      path = fallback.slice(0, 30);
-    }
-
-    var maxShow = 35;
-    var displayed = path.slice(0, maxShow);
-    if (!displayed.length) return;
-
-    var barColor = scenario === 'baseline'
-      ? 'rgba(79,142,247,0.85)'
-      : 'rgba(34,211,168,0.85)';
-    var connColor = scenario === 'baseline'
-      ? 'rgba(79,142,247,0.25)'
-      : 'rgba(34,211,168,0.25)';
-
-    var traces = [];
-    var yLabels = [];
-
-    for (var i = 0; i < displayed.length; i++) {
-      var t = displayed[i];
-      var label = t.task_name.length > 42 ? t.task_name.substring(0, 42) + '\u2026' : t.task_name;
-      var block = t.blockNotation || t.blockNum || '';
-      yLabels.push(block ? label + ' [' + block + ']' : label);
-
-      var floatTxt = t.cpmFloatDays != null ? t.cpmFloatDays.toFixed(1) + 'd' : '\u2014';
-
-      traces.push({
-        type: 'scatter', mode: 'lines',
-        x: [t.early_start, t.early_end],
-        y: [i, i],
-        line: { color: barColor, width: 16 },
-        showlegend: false,
-        hovertemplate: '<b>' + t.task_name.substring(0, 50) + '</b><br>' +
-          fmtDate(t.early_start) + ' \u2192 ' + fmtDate(t.early_end) +
-          '<br>Float: ' + floatTxt + '<extra></extra>',
-      });
-
-      if (i < displayed.length - 1) {
-        var next = displayed[i + 1];
-        traces.push({
-          type: 'scatter', mode: 'lines',
-          x: [t.early_end, next.early_start, next.early_start],
-          y: [i, i, i + 1],
-          line: { color: connColor, width: 1, dash: 'dot' },
-          showlegend: false, hoverinfo: 'skip',
-        });
-      }
-    }
-
-    plotDark('chart-gantt', traces, {
-      xaxis: { type: 'date', color: '#8899bb', gridcolor: '#2a3050' },
-      yaxis: {
-        tickvals: displayed.map(function (d, idx) { return idx; }),
-        ticktext: yLabels,
-        autorange: 'reversed', color: '#e2e8f0', tickfont: { size: 10 },
-      },
-      margin: { l: 350, r: 30, t: 10, b: 50 },
-      height: Math.max(300, displayed.length * 30 + 60),
-      hovermode: 'closest',
-    });
+  ATT.setCPMethod = function (method) {
+    _cpMethod = method;
+    document.getElementById('cp-btn-longest').classList.toggle('active', method === 'longest');
+    document.getElementById('cp-btn-zerofloat').classList.toggle('active', method === 'zerofloat');
+    document.getElementById('cp-tolerance-wrap').style.display = method === 'zerofloat' ? '' : 'none';
+    ATT.updateCPMethod();
   };
 
-  // ── CPM Validation Summary ──
-  function renderCPMValidation(baseline, optimized, diffs) {
-    var bv = baseline.cpmValidation || {};
-    var ov = optimized.cpmValidation || {};
-    var bDP = (baseline.drivingPath || []).length;
-    var oDP = (optimized.drivingPath || []).length;
+  ATT.updateCPMethod = function () {
+    if (!_cpCache) return;
+    var baseline = _cpCache.baseline, optimized = _cpCache.optimized;
+    var scenarioSel = document.getElementById('cp-gantt-filter');
+    var scenario = scenarioSel ? scenarioSel.value : 'both';
 
-    var bCritCount = 0, oCritCount = 0;
-    var tasks = Object.values(baseline.taskById);
-    for (var i = 0; i < tasks.length; i++) { if (tasks[i].cpmCritical) bCritCount++; }
-    var oTasks = Object.values(optimized.taskById);
-    for (var j = 0; j < oTasks.length; j++) { if (oTasks[j].cpmCritical) oCritCount++; }
+    var toleranceEl = document.getElementById('cp-tolerance');
+    var tolerance = toleranceEl ? parseFloat(toleranceEl.value) || 0 : 0;
+    var tolLabel = document.getElementById('cp-tolerance-val');
+    if (tolLabel) tolLabel.textContent = tolerance + 'd';
 
-    var totalDisc = (bv.aliceOnlyCritical || 0) + (bv.cpmOnlyCritical || 0)
-                  + (ov.aliceOnlyCritical || 0) + (ov.cpmOnlyCritical || 0);
+    var methodLabel = document.getElementById('cp-method-label');
 
-    var discClass = totalDisc === 0 ? 'success' : totalDisc <= 10 ? 'accent' : 'warn';
+    // Get paths for each scenario
+    var bPath, oPath, methodName;
+    if (_cpMethod === 'longest') {
+      methodName = 'Longest Path';
+      bPath = (baseline.drivingPath || []).filter(function (t) { return t.early_start && t.early_end; });
+      oPath = (optimized.drivingPath || []).filter(function (t) { return t.early_start && t.early_end; });
+      if (methodLabel) methodLabel.innerHTML = '<strong>Method: Longest Path</strong> &mdash; Driving predecessor chain from project end. Shows the single continuous sequence that governs project completion.';
+    } else {
+      methodName = 'Zero Total Float (' + tolerance + 'd tolerance)';
+      var bZF = ATT.getZeroFloatPaths(baseline, tolerance);
+      var oZF = ATT.getZeroFloatPaths(optimized, tolerance);
+      bPath = bZF.allTasks.filter(function (t) { return t.early_start && t.early_end; });
+      oPath = oZF.allTasks.filter(function (t) { return t.early_start && t.early_end; });
 
-    document.getElementById('cpm-validation-grid').innerHTML =
-      '<div class="stat-card accent"><div class="stat-label">Baseline Driving Path</div><div class="stat-value">' + bDP + ' tasks</div><div class="stat-detail">' + bCritCount + ' total near-critical activities</div></div>' +
-      '<div class="stat-card accent"><div class="stat-label">Optimized Driving Path</div><div class="stat-value">' + oDP + ' tasks</div><div class="stat-detail">' + oCritCount + ' total near-critical activities</div></div>' +
-      '<div class="stat-card ' + discClass + '"><div class="stat-label">Validation Agreement</div><div class="stat-value">' + (bv.agreementPct || 100) + '%</div><div class="stat-detail">' + totalDisc + ' discrepancies with ALICE flags</div></div>';
-  }
-
-  // ── Discrepancies Table ──
-  function renderCPMDiscrepancies(baseline, optimized) {
-    var wrap = document.getElementById('cpm-discrepancies-wrap');
-    var body = document.getElementById('cpm-discrepancy-body');
-    if (!wrap || !body) return;
-
-    var rows = [];
-
-    function collectDiscrepancies(sched, label) {
-      var tasks = Object.values(sched.taskById);
-      for (var i = 0; i < tasks.length; i++) {
-        var t = tasks[i];
-        if (!t.early_start || !t.early_end) continue;
-        var aliceCrit = t.isCritical || (t.aliceFloatDays != null && t.aliceFloatDays <= 0);
-        var cpmCrit = !!t.cpmCritical;
-        if (aliceCrit === cpmCrit) continue;
-
-        rows.push({
-          name: t.task_name,
-          block: t.blockNotation || t.blockNum || '\u2014',
-          aliceFlag: t.isCritical ? 'Critical' : 'Non-critical',
-          aliceFloat: t.aliceFloatDays != null ? t.aliceFloatDays.toFixed(1) + 'd' : '\u2014',
-          cpmFloat: t.cpmFloatDays != null ? t.cpmFloatDays.toFixed(1) + 'd' : '\u2014',
-          status: aliceCrit && !cpmCrit
-            ? '<span style="color:#f59e0b">ALICE-only critical</span>'
-            : '<span style="color:#a78bfa">CPM-only critical</span>',
-          schedule: label,
-          absFloat: Math.abs(t.cpmFloatDays || 0),
-        });
+      var fragNote = '';
+      if (bZF.fragmented || oZF.fragmented) {
+        fragNote = ' <span style="color:var(--warn)">Fragmented paths detected: Baseline has ' + bZF.pathCount + ' path(s), Optimized has ' + oZF.pathCount + ' path(s).</span>';
       }
+      if (methodLabel) methodLabel.innerHTML = '<strong>Method: Zero Total Float</strong> (tolerance \u2264 ' + tolerance + 'd) &mdash; All activities with total float within tolerance, grouped into connected paths.' + fragNote;
+
+      document.getElementById('cp-top-stats').innerHTML =
+        '<div class="stat-card accent"><div class="stat-label">Baseline Zero-Float Tasks</div><div class="stat-value">' + bPath.length + '</div><div class="stat-detail">' + bZF.pathCount + ' path fragment(s)</div></div>' +
+        '<div class="stat-card accent"><div class="stat-label">Optimized Zero-Float Tasks</div><div class="stat-value">' + oPath.length + '</div><div class="stat-detail">' + oZF.pathCount + ' path fragment(s)</div></div>';
     }
 
-    collectDiscrepancies(baseline, 'Baseline');
-    collectDiscrepancies(optimized, 'Optimized');
+    bPath.sort(function (a, b) { return a.early_start - b.early_start; });
+    oPath.sort(function (a, b) { return a.early_start - b.early_start; });
 
-    rows.sort(function (a, b) { return a.absFloat - b.absFloat; });
+    // Build the Gantt
+    drawCPGantt(bPath, oPath, scenario, _cpMethod);
 
-    if (!rows.length) {
-      wrap.style.display = 'none';
-      return;
+    // Path summary
+    renderPathSummary(bPath, oPath, scenario);
+
+    // Diagnosis (always show to compare both methods)
+    renderCPDiagnosis(baseline, optimized, tolerance);
+  };
+
+  function drawCPGantt(bPath, oPath, scenario, method) {
+    var traces = [];
+    var yLabels = [];
+    var maxShow = 40;
+
+    if (scenario === 'both') {
+      // Merge by task_name, show both bars per activity
+      var nameMap = {};
+      var order = [];
+      function addToMap(path, key) {
+        for (var i = 0; i < path.length; i++) {
+          var name = path[i].task_name;
+          if (!nameMap[name]) { nameMap[name] = {}; order.push(name); }
+          nameMap[name][key] = path[i];
+        }
+      }
+      addToMap(bPath, 'b');
+      addToMap(oPath, 'o');
+
+      // Sort by earliest start across either
+      order.sort(function (a, b) {
+        var aStart = (nameMap[a].o || nameMap[a].b).early_start;
+        var bStart = (nameMap[b].o || nameMap[b].b).early_start;
+        return aStart - bStart;
+      });
+
+      var displayed = order.slice(0, maxShow);
+
+      for (var ri = 0; ri < displayed.length; ri++) {
+        var name = displayed[ri];
+        var entry = nameMap[name];
+        var shortName = name.length > 42 ? name.substring(0, 42) + '\u2026' : name;
+        var block = (entry.b || entry.o).blockNotation || (entry.b || entry.o).blockNum || '';
+        yLabels.push(block ? shortName + ' [' + block + ']' : shortName);
+
+        if (entry.b) {
+          var bf = entry.b.cpmFloatDays != null ? entry.b.cpmFloatDays.toFixed(1) + 'd' : '\u2014';
+          traces.push({
+            type: 'scatter', mode: 'lines',
+            x: [entry.b.early_start, entry.b.early_end],
+            y: [ri - 0.18, ri - 0.18],
+            line: { color: 'rgba(79,142,247,0.75)', width: 12 },
+            name: 'Baseline', legendgroup: 'baseline', showlegend: ri === 0 && !!entry.b,
+            hovertemplate: '<b>Baseline</b><br>' + name.substring(0, 50) + '<br>' + fmtDate(entry.b.early_start) + ' \u2192 ' + fmtDate(entry.b.early_end) + '<br>Float: ' + bf + '<extra></extra>',
+          });
+        }
+        if (entry.o) {
+          var of_ = entry.o.cpmFloatDays != null ? entry.o.cpmFloatDays.toFixed(1) + 'd' : '\u2014';
+          traces.push({
+            type: 'scatter', mode: 'lines',
+            x: [entry.o.early_start, entry.o.early_end],
+            y: [ri + 0.18, ri + 0.18],
+            line: { color: 'rgba(34,211,168,0.85)', width: 12 },
+            name: 'Optimized', legendgroup: 'optimized', showlegend: ri === 0 && !!entry.o,
+            hovertemplate: '<b>Optimized</b><br>' + name.substring(0, 50) + '<br>' + fmtDate(entry.o.early_start) + ' \u2192 ' + fmtDate(entry.o.early_end) + '<br>Float: ' + of_ + '<extra></extra>',
+          });
+        }
+      }
+
+      plotDark('chart-gantt', traces, {
+        xaxis: { type: 'date', color: '#8899bb', gridcolor: '#2a3050' },
+        yaxis: {
+          tickvals: displayed.map(function (d, idx) { return idx; }),
+          ticktext: yLabels,
+          autorange: 'reversed', color: '#e2e8f0', tickfont: { size: 10 },
+        },
+        margin: { l: 350, r: 30, t: 10, b: 50 },
+        height: Math.max(300, displayed.length * 32 + 60),
+        legend: { font: { color: '#8899bb' }, orientation: 'h', y: 1.02 },
+        hovermode: 'closest',
+      });
+
+    } else {
+      // Single scenario stair-step
+      var path = scenario === 'baseline' ? bPath : oPath;
+      var displayed2 = path.slice(0, maxShow);
+      if (!displayed2.length) {
+        plotDark('chart-gantt', [], { height: 100, annotations: [{ text: 'No critical path activities found', xref: 'paper', yref: 'paper', x: 0.5, y: 0.5, showarrow: false, font: { color: '#8899bb', size: 14 } }] });
+        return;
+      }
+
+      var barColor = scenario === 'baseline' ? 'rgba(79,142,247,0.85)' : 'rgba(34,211,168,0.85)';
+      var connColor = scenario === 'baseline' ? 'rgba(79,142,247,0.25)' : 'rgba(34,211,168,0.25)';
+
+      for (var si = 0; si < displayed2.length; si++) {
+        var st = displayed2[si];
+        var sLabel = st.task_name.length > 42 ? st.task_name.substring(0, 42) + '\u2026' : st.task_name;
+        var sBlock = st.blockNotation || st.blockNum || '';
+        yLabels.push(sBlock ? sLabel + ' [' + sBlock + ']' : sLabel);
+
+        var sfloat = st.cpmFloatDays != null ? st.cpmFloatDays.toFixed(1) + 'd' : '\u2014';
+        traces.push({
+          type: 'scatter', mode: 'lines',
+          x: [st.early_start, st.early_end], y: [si, si],
+          line: { color: barColor, width: 16 },
+          showlegend: false,
+          hovertemplate: '<b>' + st.task_name.substring(0, 50) + '</b><br>' + fmtDate(st.early_start) + ' \u2192 ' + fmtDate(st.early_end) + '<br>Float: ' + sfloat + '<extra></extra>',
+        });
+
+        if (method === 'longest' && si < displayed2.length - 1) {
+          var nxt = displayed2[si + 1];
+          traces.push({
+            type: 'scatter', mode: 'lines',
+            x: [st.early_end, nxt.early_start, nxt.early_start],
+            y: [si, si, si + 1],
+            line: { color: connColor, width: 1, dash: 'dot' },
+            showlegend: false, hoverinfo: 'skip',
+          });
+        }
+      }
+
+      plotDark('chart-gantt', traces, {
+        xaxis: { type: 'date', color: '#8899bb', gridcolor: '#2a3050' },
+        yaxis: {
+          tickvals: displayed2.map(function (d, idx) { return idx; }),
+          ticktext: yLabels,
+          autorange: 'reversed', color: '#e2e8f0', tickfont: { size: 10 },
+        },
+        margin: { l: 350, r: 30, t: 10, b: 50 },
+        height: Math.max(300, displayed2.length * 30 + 60),
+        hovermode: 'closest',
+      });
+    }
+  }
+
+  function renderPathSummary(bPath, oPath, scenario) {
+    var el = document.getElementById('cp-path-summary');
+    if (!el) return;
+
+    function summarize(path, label) {
+      if (!path.length) return '<div style="color:var(--text-muted);font-size:12px">' + label + ': no critical activities found</div>';
+      var first = path[0], last = path[path.length - 1];
+      var durDays = last.early_end && first.early_start
+        ? Math.round((last.early_end - first.early_start) / MS_PER_DAY)
+        : '\u2014';
+      return '<div class="cp-summary-row">' +
+        '<span class="cp-summary-label">' + label + ':</span> ' +
+        '<span>' + path.length + ' tasks</span>' +
+        '<span class="cp-summary-sep">\u00B7</span>' +
+        '<span>' + durDays + ' calendar days</span>' +
+        '<span class="cp-summary-sep">\u00B7</span>' +
+        '<span>Start: ' + fmtDate(first.early_start) + '</span>' +
+        '<span class="cp-summary-sep">\u00B7</span>' +
+        '<span>End: ' + fmtDate(last.early_end) + '</span>' +
+      '</div>';
+    }
+
+    var html = '';
+    if (scenario === 'both' || scenario === 'baseline') html += summarize(bPath, 'Baseline');
+    if (scenario === 'both' || scenario === 'optimized') html += summarize(oPath, 'Optimized');
+
+    el.style.display = html ? '' : 'none';
+    el.innerHTML = html;
+  }
+
+  var MS_PER_DAY = 86400000;
+
+  function renderCPDiagnosis(baseline, optimized, tolerance) {
+    var wrap = document.getElementById('cp-diagnosis-wrap');
+    var el = document.getElementById('cp-diagnosis');
+    if (!wrap || !el) return;
+
+    var bDiag = ATT.diagnoseCPMethods(baseline, tolerance);
+    var oDiag = ATT.diagnoseCPMethods(optimized, tolerance);
+
+    var html = '<div class="cp-diag-section"><strong>Baseline schedule</strong><ul>' +
+      bDiag.notes.map(function (n) { return '<li>' + n + '</li>'; }).join('') +
+    '</ul></div>';
+    html += '<div class="cp-diag-section"><strong>Optimized schedule</strong><ul>' +
+      oDiag.notes.map(function (n) { return '<li>' + n + '</li>'; }).join('') +
+    '</ul></div>';
+
+    if (bDiag.overlap === 0 && oDiag.overlap === 0 && bDiag.zfOnlyCount === 0 && oDiag.zfOnlyCount === 0) {
+      html += '<div class="cp-diag-note">The two methods produce identical results for both schedules.</div>';
     }
 
     wrap.style.display = '';
-    var maxRows = 30;
-    body.innerHTML = rows.slice(0, maxRows).map(function (r) {
-      var shortName = r.name.length > 50 ? r.name.substring(0, 50) + '\u2026' : r.name;
-      return '<tr><td title="' + r.name + ' (' + r.schedule + ')">' + shortName + ' <span style="font-size:10px;color:var(--text-dim)">(' + r.schedule + ')</span></td>' +
-        '<td>' + r.block + '</td>' +
-        '<td>' + r.aliceFlag + '</td>' +
-        '<td>' + r.aliceFloat + '</td>' +
-        '<td>' + r.cpmFloat + '</td>' +
-        '<td>' + r.status + '</td></tr>';
-    }).join('');
-
-    if (rows.length > maxRows) {
-      body.innerHTML += '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);font-size:12px">\u2026 and ' + (rows.length - maxRows) + ' more</td></tr>';
-    }
+    el.innerHTML = html;
   }
 
   // ── Requirements ──

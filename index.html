@@ -216,53 +216,54 @@
       <!-- TAB: Critical Path -->
       <div class="tab-panel" id="tab-critical">
         <div class="section-header">
-          <div class="section-title">Critical Path Validation</div>
-          <div class="section-sub">Independent CPM recalculation to validate ALICE&rsquo;s critical path flags</div>
+          <div class="section-title">Critical Path Analysis</div>
+          <div class="section-sub">Independent CPM recalculation with two selectable definitions</div>
         </div>
 
-        <!-- CPM validation summary -->
-        <div class="stats-grid" id="cpm-validation-grid" style="margin-bottom:12px"></div>
+        <!-- Top-level task counts -->
+        <div class="stats-grid" id="cp-top-stats" style="margin-bottom:16px"></div>
 
-        <!-- Discrepancies -->
-        <div id="cpm-discrepancies-wrap" style="display:none;margin-top:16px">
-          <div class="section-header">
-            <div class="section-title" style="font-size:15px">Discrepancies &mdash; ALICE vs CPM</div>
-            <div class="section-sub">Activities where ALICE&rsquo;s critical flag disagrees with the recalculated float</div>
+        <!-- Method selector + controls -->
+        <div class="cp-controls">
+          <div class="cp-method-toggle">
+            <button class="cp-method-btn active" id="cp-btn-longest" onclick="ATT.setCPMethod('longest')">Longest Path</button>
+            <button class="cp-method-btn" id="cp-btn-zerofloat" onclick="ATT.setCPMethod('zerofloat')">Zero Total Float</button>
           </div>
-          <div class="data-table-wrap">
-            <table class="data-table" id="cpm-discrepancy-table">
-              <thead><tr><th>Activity</th><th>Block</th><th>ALICE Flag</th><th>ALICE Float</th><th>CPM Float</th><th>Status</th></tr></thead>
-              <tbody id="cpm-discrepancy-body"></tbody>
-            </table>
+          <div class="cp-control-row">
+            <div class="cp-tolerance-wrap" id="cp-tolerance-wrap" style="display:none">
+              <span class="filter-label">Float tolerance:</span>
+              <input type="range" id="cp-tolerance" min="0" max="5" step="0.5" value="0" oninput="ATT.updateCPMethod()">
+              <span id="cp-tolerance-val" style="font-size:12px;color:var(--text-muted);min-width:30px">0d</span>
+            </div>
+            <div>
+              <span class="filter-label">Scenario:</span>
+              <select class="filter-select" id="cp-gantt-filter" onchange="ATT.updateCPMethod()">
+                <option value="both">Both (Baseline &amp; Optimized)</option>
+                <option value="baseline">Baseline only</option>
+                <option value="optimized">Optimized only</option>
+              </select>
+            </div>
           </div>
         </div>
 
-        <div class="section-header" style="margin-top:24px">
-          <div class="section-title">Critical Path Shifts</div>
-          <div class="section-sub">Activities that moved onto or off the driving path between scenarios</div>
-        </div>
-        <div class="stats-grid" id="cp-stats-grid" style="margin-bottom:20px"></div>
+        <!-- Method label -->
+        <div id="cp-method-label" class="cp-method-label"></div>
+
+        <!-- Critical path chart -->
         <div class="chart-wrap">
-          <div class="chart-title">True Critical Path &mdash; Driving Chain</div>
-          <div class="chart-sub">Only activities on the longest path with zero float, shown in sequence</div>
-          <div class="filter-bar" style="margin-bottom:8px">
-            <span class="filter-label">Scenario:</span>
-            <select class="filter-select" id="cp-gantt-filter" onchange="ATT.updateCPGantt()">
-              <option value="optimized">Optimized Driving Path</option>
-              <option value="baseline">Baseline Driving Path</option>
-            </select>
-          </div>
           <div id="chart-gantt" style="min-height:300px"></div>
         </div>
-        <div class="two-col">
-          <div>
-            <div class="section-header"><div class="section-title" style="font-size:15px">Moved Off Critical Path</div><div class="section-sub">(gained float in optimized)</div></div>
-            <div class="cp-flow" id="cp-gained-float"></div>
+
+        <!-- Path summary -->
+        <div id="cp-path-summary" class="cp-path-summary" style="display:none"></div>
+
+        <!-- Diagnosis: why methods differ -->
+        <div id="cp-diagnosis-wrap" style="display:none;margin-top:20px">
+          <div class="section-header">
+            <div class="section-title" style="font-size:15px">Why do the two methods differ?</div>
+            <div class="section-sub">Comparison of Zero Float vs Longest Path results</div>
           </div>
-          <div>
-            <div class="section-header"><div class="section-title" style="font-size:15px">Near-Critical in Both</div><div class="section-sub">(finish close to project end)</div></div>
-            <div class="cp-flow" id="cp-near-critical"></div>
-          </div>
+          <div id="cp-diagnosis" class="cp-diagnosis"></div>
         </div>
       </div>
 
