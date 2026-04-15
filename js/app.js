@@ -59,22 +59,6 @@
     inp.click();
   });
 
-  // ── Drop zone ──
-  (function () {
-    var dz = document.getElementById('dropzone');
-    document.addEventListener('dragover', function (e) { e.preventDefault(); });
-    document.addEventListener('drop', function (e) { e.preventDefault(); });
-    dz.addEventListener('dragover', function (e) { e.preventDefault(); dz.classList.add('drag-active'); });
-    dz.addEventListener('dragleave', function (e) { if (!dz.contains(e.relatedTarget)) dz.classList.remove('drag-active'); });
-    dz.addEventListener('drop', function (e) {
-      e.preventDefault(); dz.classList.remove('drag-active');
-      var files = e.dataTransfer.files;
-      if (!files || files.length === 0) return;
-      if (files.length >= 2) { readFile(files[0], 'baseline'); readFile(files[1], 'optimized'); }
-      else { readFile(files[0], APP.baselineText ? 'optimized' : 'baseline'); }
-    });
-  })();
-
   // ── Loading helpers ──
   function setLoadingStage(text, pct) {
     document.getElementById('loading-stage').textContent = text;
