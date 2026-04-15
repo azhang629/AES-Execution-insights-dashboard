@@ -256,18 +256,6 @@
       renderAliceCrewCurves(R.bCrewData, R.oCrewData);
     }
 
-    var months = Object.keys(aggregations.byMonth).sort();
-    plotDark('chart-monthly-crew', [
-      { type: 'bar', name: 'Baseline', x: months, y: months.map(function (m) { return aggregations.byMonth[m].laborB; }), marker: { color: 'rgba(79,142,247,0.5)' }, hovertemplate: 'Baseline %{x}: %{y:.0f} crew-hrs<extra></extra>' },
-      { type: 'bar', name: 'Optimized', x: months, y: months.map(function (m) { return aggregations.byMonth[m].laborO; }), marker: { color: 'rgba(34,211,168,0.7)' }, hovertemplate: 'Optimized %{x}: %{y:.0f} crew-hrs<extra></extra>' },
-    ], {
-      barmode: 'group',
-      xaxis: { color: '#e2e8f0', tickangle: -30, type: 'category' },
-      yaxis: { title: 'Total crew-hours', color: '#8899bb', gridcolor: '#2a3050' },
-      margin: { l: 60, r: 20, t: 10, b: 80 }, height: 340,
-      legend: { font: { color: '#8899bb' } },
-    });
-
     // Activity density
     var commodities = Array.from(new Set(diffs.map(function (d) { return d.commodity; }))).filter(function (c) { return c !== 'Other'; });
     var startsByMonth = {};
