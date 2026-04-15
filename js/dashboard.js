@@ -129,13 +129,15 @@
       var crewHtml = '';
       if (a.crewShifts && a.crewShifts.length) {
         crewHtml = '<div class="epc-crew-table"><table>' +
-          '<thead><tr><th>Crew</th><th>Baseline Peak</th><th>Optimized Peak</th><th>Shift</th></tr></thead><tbody>' +
+          '<thead><tr><th>Crew</th><th>Baseline Crew #</th><th>Baseline Peak Date</th><th>Optimized Crew #</th><th>Optimized Peak Date</th><th>Shift</th></tr></thead><tbody>' +
           a.crewShifts.map(function (c) {
             var dir = c.shiftDays > 0 ? 'earlier' : 'later';
             var cls = c.shiftDays > 0 ? 'epc-shift-pos' : 'epc-shift-neg';
             return '<tr><td>' + c.name + '</td>' +
-              '<td>' + c.bPeak + ' on ' + fmtDate(c.bDate) + '</td>' +
-              '<td>' + c.oPeak + ' on ' + fmtDate(c.oDate) + '</td>' +
+              '<td>' + c.bPeak + '</td>' +
+              '<td>' + fmtDate(c.bDate) + '</td>' +
+              '<td>' + c.oPeak + '</td>' +
+              '<td>' + fmtDate(c.oDate) + '</td>' +
               '<td class="' + cls + '">' + Math.abs(c.shiftDays) + 'd ' + dir + '</td></tr>';
           }).join('') +
           '</tbody></table></div>';
@@ -150,7 +152,6 @@
         '<div class="epc-body">' +
           bulletsHtml +
           crewHtml +
-          '<div class="epc-field-action-wrap"><div class="epc-field-label">EPC Field Action</div><div class="epc-field-action">' + a.fieldAction + '</div></div>' +
         '</div>' +
         weakHtml +
       '</div>';
