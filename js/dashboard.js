@@ -73,25 +73,30 @@
       hovertemplate: '<b>%{y}</b><br>~%{x} days<extra></extra>',
     }], {
       xaxis: { title: 'Schedule Days Recovered', color: '#8899bb', gridcolor: '#2a3050' },
-      yaxis: { autorange: 'reversed', color: '#e2e8f0', tickfont: { size: 11 } },
-      margin: { l: 200, r: 100, t: 10, b: 40 },
-      height: 300,
+      yaxis: { autorange: 'reversed', color: '#e2e8f0', tickfont: { size: 11 }, automargin: true },
+      margin: { l: 10, r: 100, t: 10, b: 40 },
+      height: Math.max(400, sortedTactics.length * 40 + 60),
     });
 
     // Commodity donut
     var commData = Object.entries(aggregations.byCommodity)
       .map(function (e) { return { name: e[0], val: Math.abs(e[1].totalFinishVar) }; })
       .sort(function (a, b) { return b.val - a.val; }).slice(0, 8);
+    var commTotal = commData.reduce(function (s, c) { return s + c.val; }, 0) || 1;
     plotDark('chart-commodity', [{
-      type: 'pie',
-      labels: commData.map(function (c) { return c.name; }),
-      values: commData.map(function (c) { return c.val; }),
-      hole: 0.5,
-      marker: { colors: ['#4f8ef7', '#22d3a8', '#f59e0b', '#a78bfa', '#f472b6', '#60a5fa', '#34d399', '#fb7185'] },
-      textinfo: 'label+percent',
-      textfont: { color: '#e2e8f0', size: 11 },
-      hovertemplate: '<b>%{label}</b><br>%{value:.0f} days total shift<extra></extra>',
-    }], { margin: { l: 20, r: 20, t: 20, b: 20 }, height: 300, showlegend: false });
+      type: 'bar', orientation: 'h',
+      y: commData.map(function (c) { return c.name; }),
+      x: commData.map(function (c) { return +(c.val / commTotal * 100).toFixed(1); }),
+      marker: { color: ['#4f8ef7', '#22d3a8', '#f59e0b', '#a78bfa', '#f472b6', '#60a5fa', '#34d399', '#fb7185'] },
+      text: commData.map(function (c) { return (c.val / commTotal * 100).toFixed(1) + '%'; }),
+      textposition: 'outside',
+      hovertemplate: '<b>%{y}</b><br>%{text}<extra></extra>',
+    }], {
+      xaxis: { title: '% of total schedule improvement', color: '#8899bb', gridcolor: '#2a3050', ticksuffix: '%' },
+      yaxis: { autorange: 'reversed', color: '#e2e8f0', tickfont: { size: 11 }, automargin: true },
+      margin: { l: 10, r: 80, t: 10, b: 40 },
+      height: 400,
+    });
 
     // Insights
     document.getElementById('insights-grid').innerHTML = insights.map(function (ins) {
@@ -267,20 +272,6 @@
 
     renderCPList(document.getElementById('cp-gained-float'), gainedFloat.concat(becameCritical));
     renderCPList(document.getElementById('cp-near-critical'), stillCritical);
-
-    // Float histogram
-    var floatChanges = diffs.map(function (d) { return d.floatVar; }).filter(function (v) { return v !== 0 && Math.abs(v) < 60; });
-    if (floatChanges.length > 0) {
-      plotDark('chart-float', [{
-        type: 'histogram', x: floatChanges, nbinsx: 30,
-        marker: { color: floatChanges.map(function (v) { return v > 0 ? '#22d3a8' : '#ef4444'; }) },
-        name: 'Float change', hovertemplate: '%{y} activities with %{x:.1f}d float change<extra></extra>',
-      }], {
-        xaxis: { title: 'Float change in days (positive = more buffer)', color: '#8899bb', gridcolor: '#2a3050' },
-        yaxis: { title: 'Activity count', color: '#8899bb', gridcolor: '#2a3050' },
-        margin: { l: 60, r: 20, t: 10, b: 50 }, height: 280,
-      });
-    }
 
     // ── Gantt Chart: Critical Path Comparison ──
     var cpDiffs = diffs.filter(function (d) { return d.bCritical || d.oCritical; })

@@ -22,6 +22,31 @@
     return true;
   }
 
+  function rootCause(d) {
+    var tactics = d.tactics || [];
+    if (!tactics.length || tactics[0].tactic === 'No Change') return '';
+    var primary = tactics[0];
+    var t = primary.tactic;
+    if (t === TACTICS.RESEQUENCING) return 'Resequenced \u2014 work reordered in the optimized schedule.';
+    if (t === TACTICS.CONSTRAINT) return 'Constraint released \u2014 area available earlier.';
+    if (t === TACTICS.RAMP) return 'Earlier ramp-up with larger crew (' + (d.laborVar > 0 ? '+' + d.laborVar.toFixed(0) + ' workers' : 'crew increase') + ').';
+    if (t === TACTICS.OVERLAP) return 'Now overlaps predecessor \u2014 starts before prior trade finishes.';
+    if (t === TACTICS.HANDOFF) {
+      var pred = (d.logic && d.logic.drivingPredName) ? '\u201C' + shortName(d.logic.drivingPredName) + '\u201D' : 'predecessor';
+      return 'Handoff from ' + pred + ' compressed.';
+    }
+    if (t === TACTICS.INTENSITY) return 'Crew increased (+' + d.laborVar.toFixed(0) + ' workers) to shorten duration.';
+    if (t === TACTICS.PEAK_TIMING) return 'Peak shifted to a different month \u2014 same crew and duration.';
+    if (t === TACTICS.CP) return primary.detail + '.';
+    if (t === TACTICS.SMOOTHING) return 'Resource leveled \u2014 crew adjusted without shifting dates.';
+    return primary.detail || '';
+  }
+
+  function dateShift(d) {
+    if (!d.bStart || !d.oStart) return '';
+    return 'Baseline: ' + fmtDate(d.bStart) + ' \u2192 Optimized: ' + fmtDate(d.oStart) + '.';
+  }
+
   ATT.generateEPCActions = function (aggregations, diffs, R) {
     var byTactic = aggregations.byTactic;
     var totalGainDays = R.totalGainDays, usingMC = R.usingMC;
@@ -52,7 +77,7 @@
       actions.push({
         priority: 'Critical',
         title: 'Mobilize ' + d.commodity + ' ' + Math.abs(d.startVar).toFixed(0) + 'd earlier' + (loc ? ' in ' + loc : '') + ' \u2014 starts ' + fmtDate(d.oStart),
-        detail: '\u201C' + shortName(d.task_name) + '\u201D is on the critical path and must begin ' + Math.abs(d.startVar).toFixed(0) + ' days earlier than baseline. Get the sub on-site, trailers set, tools laid out, and crew badged in before ' + fmtDate(d.oStart) + '. Confirm material is on the laydown and rigging is available.',
+        detail: '\u201C' + shortName(d.task_name) + '\u201D (critical path). ' + rootCause(d) + ' ' + dateShift(d),
         by: fmtDate(d.oStart)
       });
     });
@@ -82,7 +107,7 @@
         actions.push({
           priority: 'High',
           title: 'Add ' + info.peak.toFixed(0) + ' ' + trade + ' workers for \u201C' + shortName(topTask.task_name) + '\u201D' + (info.count > 1 ? ' (+' + (info.count - 1) + ' more activities)' : ''),
-          detail: 'Need +' + info.peak.toFixed(0) + ' heads on the ground from ' + fmtDate(info.earliest) + ' through ' + fmtDate(info.latest) + '. Get the sub to commit crew counts in writing. Make sure there are enough harnesses, radios, and hand tools for the bigger gang. Verify parking, porta-johns, and break area can handle the extra headcount.',
+          detail: rootCause(topTask) + ' Need +' + info.peak.toFixed(0) + ' workers from ' + fmtDate(info.earliest) + ' through ' + fmtDate(info.latest) + '.',
           by: fmtDate(info.earliest)
         });
       });
@@ -102,7 +127,7 @@
       actions.push({
         priority: 'High',
         title: 'Reduce gap before \u201C' + shortName(d.task_name) + '\u201D' + (loc ? ' in ' + loc : ''),
-        detail: 'Predecessor: \u201C' + predName + '\u201D \u2192 Successor: \u201C' + taskName + '\u201D. Gap: ' + gapStr + '.',
+        detail: 'Predecessor: \u201C' + predName + '\u201D \u2192 Successor: \u201C' + taskName + '\u201D. Gap: ' + gapStr + '. ' + dateShift(d),
         by: d.oStart ? fmtDate(d.oStart) : null
       });
     });
@@ -126,7 +151,7 @@
           actions.push({
             priority: 'High',
             title: 'Run concurrent ' + p.commodity + ' work in ' + p.loc + ' \u2014 ' + p.count + ' activities overlap predecessors',
-            detail: 'Two trades will be working the same area at the same time. Rope off zones, stagger lifts, and make sure each foreman knows exactly which rows or tables are theirs. Run a joint tailboard every morning so both crews know where the other one is. First overlap starts ' + fmtDate(p.earliest) + '.',
+            detail: p.count + ' activities now overlap predecessors \u2014 trades working the same area at the same time. Coordinate zone access between foremen. First overlap: ' + fmtDate(p.earliest) + '.',
             by: fmtDate(p.earliest)
           });
         });
@@ -157,8 +182,8 @@
         var loc = blk(d);
         actions.push({
           priority: 'High',
-          title: 'Complete \u201C' + shortName(d.task_name) + '\u201D ' + info.maxCut.toFixed(0) + 'd faster' + (loc ? ' in ' + loc : '') + ' \u2014 pre-stage materials by ' + fmtDate(d.oStart),
-          detail: 'Have all material kitted and delivered to the workfront before the crew shows up \u2014 no waiting on forklifts or running back to the laydown. Pre-assemble what you can off the install area. Make sure the right equipment is there day one: torque wrenches, crimpers, cable carts, whatever the crew needs so they don\u2019t lose a single shift.',
+          title: 'Complete \u201C' + shortName(d.task_name) + '\u201D ' + info.maxCut.toFixed(0) + 'd faster' + (loc ? ' in ' + loc : ''),
+          detail: rootCause(d) + ' Duration: ' + d.bDurDays.toFixed(0) + 'd \u2192 ' + d.oDurDays.toFixed(0) + 'd. ' + dateShift(d),
           by: fmtDate(d.oStart)
         });
       });
@@ -185,7 +210,7 @@
           actions.push({
             priority: 'Medium',
             title: 'Move ' + trade + ' peak from ' + topShift[0] + ' \u2014 ' + info.count + ' activities shift',
-            detail: 'The ' + trade + ' crew hits peak manning in a different month now. Call the sub and lock in the new dates. Rebook any rented equipment, trailers, and laydown reservations to match. Make sure material deliveries land before the new start \u2014 not on the old schedule.',
+            detail: trade + ' peak manning shifts from ' + topShift[0] + ' (' + info.count + ' activities). Confirm new dates with sub and align material deliveries.',
             by: null
           });
         });
@@ -200,7 +225,7 @@
         actions.push({
           priority: 'Critical',
           title: 'Secure area access' + (loc ? ' for ' + loc : '') + ' by ' + fmtDate(d.oStart) + ' \u2014 \u201C' + shortName(d.task_name) + '\u201D is constraint-gated',
-          detail: 'Crews can\u2019t touch this area until the permit or release comes through. Get the application submitted now, chase the approval weekly, and have a plan B if it\u2019s late. Once access is granted, be ready to roll \u2014 equipment, material, and crew should already be staged nearby.',
+          detail: '\u201C' + shortName(d.task_name) + '\u201D is constraint-gated. ' + rootCause(d) + ' ' + dateShift(d),
           by: fmtDate(d.oStart)
         });
       });
@@ -233,7 +258,7 @@
         actions.push({
           priority: 'Medium',
           title: 'Order ' + trade + ' materials ' + info.maxPull.toFixed(0) + 'd earlier' + (loc ? ' for ' + loc : '') + ' \u2014 needed on-site by ' + fmtDate(d.oStart),
-          detail: '\u201C' + shortName(d.task_name) + '\u201D kicks off ' + info.maxPull.toFixed(0) + ' days sooner than the old plan. Place POs now, confirm delivery dates with the vendor, and make sure the laydown has space to receive it. If lead times are tight, get the procurement team on a weekly call with the supplier until it ships.',
+          detail: '\u201C' + shortName(d.task_name) + '\u201D pulled in ' + info.maxPull.toFixed(0) + 'd. ' + rootCause(d) + ' ' + dateShift(d),
           by: fmtDate(d.oStart)
         });
       });

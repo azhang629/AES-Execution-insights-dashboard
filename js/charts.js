@@ -9,7 +9,11 @@
       margin: { l: 50, r: 20, t: 20, b: 40 },
     }, extraLayout || {});
     Plotly.react(elId, data, layout, {
-      responsive: true, displayModeBar: false, staticPlot: false,
+      responsive: true,
+      displayModeBar: true,
+      modeBarButtonsToRemove: ['lasso2d', 'select2d', 'sendDataToCloud'],
+      displaylogo: false,
+      scrollZoom: true,
     });
   };
 
