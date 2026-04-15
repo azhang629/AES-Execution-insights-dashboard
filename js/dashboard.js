@@ -114,7 +114,25 @@
     if (!list) return;
     list.innerHTML = epcActions.map(function (a, i) {
       var pCls = a.priority.toLowerCase();
-      return '<div class="epc-action priority-' + pCls + '"><div class="epc-num">' + (i + 1) + '</div><div><div class="epc-title">' + a.title + '</div><div class="epc-detail">' + a.detail + '</div></div><div class="epc-meta"><span class="priority-pill ' + pCls + '">' + a.priority + '</span>' + (a.by ? '<div class="epc-by">by ' + a.by + '</div>' : '') + '</div></div>';
+      var weakHtml = '';
+      if (a.weakLogic && a.weakLogicNote) {
+        weakHtml = '<div class="epc-weak-logic">\u26A0 ' + a.weakLogicNote + '</div>';
+      }
+      return '<div class="epc-action-card priority-' + pCls + '">' +
+        '<div class="epc-card-header">' +
+          '<div class="epc-num">' + (i + 1) + '</div>' +
+          '<div class="epc-title">' + a.title + '</div>' +
+          '<span class="priority-pill ' + pCls + '">' + a.priority + '</span>' +
+        '</div>' +
+        '<div class="epc-fields">' +
+          '<div class="epc-field"><div class="epc-field-label">EPC Field Action</div><div class="epc-field-value epc-field-action">' + a.fieldAction + '</div></div>' +
+          '<div class="epc-field"><div class="epc-field-label">Baseline State</div><div class="epc-field-value">' + a.baselineState + '</div></div>' +
+          '<div class="epc-field"><div class="epc-field-label">Optimized State</div><div class="epc-field-value">' + a.optimizedState + '</div></div>' +
+          '<div class="epc-field"><div class="epc-field-label">What Changed</div><div class="epc-field-value">' + a.whatChanged + '</div></div>' +
+          '<div class="epc-field"><div class="epc-field-label">Root Cause</div><div class="epc-field-value">' + a.rootCause + '</div></div>' +
+        '</div>' +
+        weakHtml +
+      '</div>';
     }).join('');
   }
 
@@ -211,6 +229,10 @@
   // ── Crew Timeline ──
   function renderCrewTimeline(R) {
     var aggregations = R.aggregations, diffs = R.diffs;
+
+    if (R.bCrewData && R.oCrewData) {
+      renderAliceCrewCurves(R.bCrewData, R.oCrewData);
+    }
 
     var months = Object.keys(aggregations.byMonth).sort();
     plotDark('chart-monthly-crew', [
@@ -399,5 +421,79 @@
       'Showing ' + shown.length + ' of ' + filtered.length + ' activities' +
       (filtered.length < diffs.length ? ' (' + diffs.length + ' total)' : '');
   };
+
+  // ── ALICE Crew Curves ──
+  function renderAliceCrewCurves(bCrew, oCrew) {
+    var wrap = document.getElementById('crew-curve-wrap');
+    if (wrap) wrap.style.display = '';
+
+    var allDates = {};
+    bCrew.dates.forEach(function (d) { allDates[d] = true; });
+    oCrew.dates.forEach(function (d) { allDates[d] = true; });
+    var sortedDates = Object.keys(allDates).sort();
+
+    var bTotals = sortedDates.map(function (d) { return bCrew.dailyTotal[d] || 0; });
+    var oTotals = sortedDates.map(function (d) { return oCrew.dailyTotal[d] || 0; });
+
+    plotDark('chart-crew-curve', [
+      { type: 'scatter', mode: 'lines', name: 'Baseline', x: sortedDates, y: bTotals, line: { color: 'rgba(79,142,247,0.8)', width: 2 }, fill: 'tozeroy', fillcolor: 'rgba(79,142,247,0.1)' },
+      { type: 'scatter', mode: 'lines', name: 'Optimized', x: sortedDates, y: oTotals, line: { color: 'rgba(34,211,168,0.9)', width: 2 }, fill: 'tozeroy', fillcolor: 'rgba(34,211,168,0.1)' },
+    ], {
+      xaxis: { type: 'date', color: '#8899bb', gridcolor: '#2a3050' },
+      yaxis: { title: 'Total daily headcount', color: '#8899bb', gridcolor: '#2a3050' },
+      margin: { l: 60, r: 20, t: 10, b: 50 },
+      height: 400,
+      legend: { font: { color: '#8899bb' }, orientation: 'h', y: 1.05 },
+      annotations: [
+        { x: bCrew.peakDate ? bCrew.peakDate.toISOString().slice(0, 10) : '', y: bCrew.peakCount, text: 'Baseline peak: ' + bCrew.peakCount, showarrow: true, arrowhead: 2, ax: -40, ay: -30, font: { color: '#4f8ef7', size: 11 }, arrowcolor: '#4f8ef7' },
+        { x: oCrew.peakDate ? oCrew.peakDate.toISOString().slice(0, 10) : '', y: oCrew.peakCount, text: 'Optimized peak: ' + oCrew.peakCount, showarrow: true, arrowhead: 2, ax: 40, ay: -30, font: { color: '#22d3a8', size: 11 }, arrowcolor: '#22d3a8' },
+      ],
+    });
+
+    var tradeWrap = document.getElementById('crew-trade-wrap');
+    if (tradeWrap) tradeWrap.style.display = '';
+
+    var allCrewNames = {};
+    bCrew.crewNames.forEach(function (n) { allCrewNames[n] = true; });
+    oCrew.crewNames.forEach(function (n) { allCrewNames[n] = true; });
+    var crewList = Object.keys(allCrewNames).sort();
+
+    var tradeTraces = [];
+    var tradeColors = ['#4f8ef7', '#22d3a8', '#f59e0b', '#a78bfa', '#f472b6', '#60a5fa', '#34d399', '#fb7185', '#e879f9', '#fbbf24'];
+
+    crewList.forEach(function (crew, idx) {
+      var bData = bCrew.crews[crew] || {};
+      var oData = oCrew.crews[crew] || {};
+      var bVals = sortedDates.map(function (d) { return bData[d] || 0; });
+      var oVals = sortedDates.map(function (d) { return oData[d] || 0; });
+      var bMax = Math.max.apply(null, bVals);
+      var oMax = Math.max.apply(null, oVals);
+      if (bMax < 1 && oMax < 1) return;
+
+      var color = tradeColors[idx % tradeColors.length];
+      tradeTraces.push({
+        type: 'scatter', mode: 'lines', name: crew + ' (Baseline)',
+        x: sortedDates, y: bVals,
+        line: { color: color, width: 1.5, dash: 'dot' },
+        legendgroup: crew, showlegend: true,
+        visible: 'legendonly',
+      });
+      tradeTraces.push({
+        type: 'scatter', mode: 'lines', name: crew + ' (Optimized)',
+        x: sortedDates, y: oVals,
+        line: { color: color, width: 2 },
+        legendgroup: crew, showlegend: true,
+        visible: 'legendonly',
+      });
+    });
+
+    plotDark('chart-crew-bytrade', tradeTraces, {
+      xaxis: { type: 'date', color: '#8899bb', gridcolor: '#2a3050' },
+      yaxis: { title: 'Daily headcount', color: '#8899bb', gridcolor: '#2a3050' },
+      margin: { l: 60, r: 20, t: 10, b: 50 },
+      height: 500,
+      legend: { font: { color: '#8899bb', size: 10 }, orientation: 'v', x: 1.02, y: 1 },
+    });
+  }
 
 })(window.ATT = window.ATT || {});

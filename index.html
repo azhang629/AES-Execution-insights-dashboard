@@ -30,6 +30,20 @@
       <button type="button" class="ub-btn" id="btn-pick-optimized">Choose CSV File</button>
       <div class="ub-status" id="fn-optimized"></div>
     </div>
+    <div class="upload-box" id="card-crewBaseline">
+      <div class="ub-icon">&nbsp;&#x1F477;</div>
+      <div class="ub-title">Baseline Crew Data</div>
+      <div class="ub-hint">ALICE crew export (optional)</div>
+      <button type="button" class="ub-btn" id="btn-pick-crewBaseline">Choose CSV File</button>
+      <div class="ub-status" id="fn-crewBaseline"></div>
+    </div>
+    <div class="upload-box" id="card-crewOptimized">
+      <div class="ub-icon">&nbsp;&#x1F477;</div>
+      <div class="ub-title">Optimized Crew Data</div>
+      <div class="ub-hint">ALICE crew export (optional)</div>
+      <button type="button" class="ub-btn" id="btn-pick-crewOptimized">Choose CSV File</button>
+      <div class="ub-status" id="fn-crewOptimized"></div>
+    </div>
     <div class="upload-dropzone" id="dropzone">
       <p>Or drag &amp; drop CSV files here</p>
     </div>
@@ -188,6 +202,16 @@
           <div class="section-title">Time-Phased Crew &amp; Activity View</div>
           <div class="section-sub">When crew ramps, intensity, or resequencing changed materially</div>
         </div>
+        <div class="chart-wrap" id="crew-curve-wrap" style="display:none">
+          <div class="chart-title">Total Site Crew Curve &mdash; Baseline vs Optimized (ALICE Data)</div>
+          <div class="chart-sub">Daily headcount from ALICE crew exports</div>
+          <div id="chart-crew-curve" style="height:400px"></div>
+        </div>
+        <div class="chart-wrap" id="crew-trade-wrap" style="display:none">
+          <div class="chart-title">Crew Curves by Trade &mdash; Baseline vs Optimized</div>
+          <div class="chart-sub">Per-crew daily headcount comparison</div>
+          <div id="chart-crew-bytrade" style="height:500px"></div>
+        </div>
         <div class="chart-wrap">
           <div class="chart-title">Monthly Labor Demand &mdash; Baseline vs Optimized</div>
           <div class="chart-sub">Total labor crew-hours per month across all activities</div>
@@ -262,6 +286,7 @@
 <!-- Module scripts loaded in dependency order -->
 <script src="js/utils.js"></script>
 <script src="js/csv-parser.js"></script>
+<script src="js/crew-parser.js"></script>
 <script src="js/schedule-model.js"></script>
 <script src="js/matcher.js"></script>
 <script src="js/differ.js"></script>

@@ -4,6 +4,8 @@
   window.APP = {
     baselineFile: null, optimizedFile: null,
     baselineText: null, optimizedText: null,
+    crewBaselineFile: null, crewOptimizedFile: null,
+    crewBaselineText: null, crewOptimizedText: null,
     results: null,
   };
 
@@ -46,6 +48,16 @@
     inp.onchange = function () { if (inp.files && inp.files[0]) readFile(inp.files[0], 'optimized'); };
     inp.click();
   });
+  document.getElementById('btn-pick-crewBaseline').addEventListener('click', function () {
+    var inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.csv';
+    inp.onchange = function () { if (inp.files && inp.files[0]) readFile(inp.files[0], 'crewBaseline'); };
+    inp.click();
+  });
+  document.getElementById('btn-pick-crewOptimized').addEventListener('click', function () {
+    var inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.csv';
+    inp.onchange = function () { if (inp.files && inp.files[0]) readFile(inp.files[0], 'crewOptimized'); };
+    inp.click();
+  });
 
   // ── Drop zone ──
   (function () {
@@ -83,6 +95,20 @@
     await ATT.sleep(30);
 
     var optimizedRows = ATT.parseCSVText(APP.optimizedText);
+
+    // Parse crew CSVs if provided
+    var bCrewData = null, oCrewData = null;
+    if (APP.crewBaselineText) {
+      setLoadingStage('Parsing baseline crew data\u2026', 32);
+      await ATT.sleep(20);
+      bCrewData = ATT.parseCrewCSV(APP.crewBaselineText);
+    }
+    if (APP.crewOptimizedText) {
+      setLoadingStage('Parsing optimized crew data\u2026', 36);
+      await ATT.sleep(20);
+      oCrewData = ATT.parseCrewCSV(APP.crewOptimizedText);
+    }
+
     setLoadingStage('Building schedule models\u2026', 40);
     await ATT.sleep(30);
 
@@ -147,7 +173,12 @@
     var insights     = ATT.generateInsights(aggregations, classifiedDiffs, totalGainDays);
     var requirements = ATT.generateRequirements(aggregations, classifiedDiffs, totalGainDays);
 
-    var partialR = { totalGainDays: totalGainDays, usingMC: usingMC, bMCDate: bMCDate, oMCDate: oMCDate, bCODDate: bCODDate, oCODDate: oCODDate, bSubstDate: bSubstDate, oSubstDate: oSubstDate, mcWarning: mcWarning };
+    var partialR = {
+      totalGainDays: totalGainDays, usingMC: usingMC,
+      bMCDate: bMCDate, oMCDate: oMCDate, bCODDate: bCODDate, oCODDate: oCODDate,
+      bSubstDate: bSubstDate, oSubstDate: oSubstDate, mcWarning: mcWarning,
+      bCrewData: bCrewData, oCrewData: oCrewData,
+    };
     var epcActions = ATT.generateEPCActions(aggregations, classifiedDiffs, partialR);
 
     setLoadingStage('Building dashboard\u2026', 95);
@@ -163,6 +194,7 @@
       bSubstDate: bSubstDate, oSubstDate: oSubstDate, bEndDate: bEndDate, oEndDate: oEndDate,
       matchCount: matchResult.matched.length,
       changedCount: classifiedDiffs.filter(function (d) { return Math.abs(d.finishVar) > 0.5; }).length,
+      bCrewData: bCrewData, oCrewData: oCrewData,
     };
 
     ATT.renderDashboard(APP.results);
@@ -207,13 +239,14 @@
   // ── Reset ──
   ATT.resetApp = function () {
     APP.baselineFile = APP.optimizedFile = APP.baselineText = APP.optimizedText = APP.results = null;
+    APP.crewBaselineFile = APP.crewOptimizedFile = APP.crewBaselineText = APP.crewOptimizedText = null;
     document.getElementById('app').style.display = 'none';
-    document.getElementById('fn-baseline').textContent = '';
-    document.getElementById('fn-baseline').className = 'ub-status';
-    document.getElementById('fn-optimized').textContent = '';
-    document.getElementById('fn-optimized').className = 'ub-status';
-    document.getElementById('card-baseline').classList.remove('loaded');
-    document.getElementById('card-optimized').classList.remove('loaded');
+    ['baseline', 'optimized', 'crewBaseline', 'crewOptimized'].forEach(function (k) {
+      var fn = document.getElementById('fn-' + k);
+      if (fn) { fn.textContent = ''; fn.className = 'ub-status'; }
+      var card = document.getElementById('card-' + k);
+      if (card) card.classList.remove('loaded');
+    });
     document.getElementById('btn-analyze').disabled = true;
     document.getElementById('upload-screen').style.display = 'flex';
     var mcWarnEl = document.getElementById('mc-warning');
