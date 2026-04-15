@@ -200,14 +200,15 @@
           <div class="section-sub">When crew ramps, intensity, or resequencing changed materially</div>
         </div>
         <div class="chart-wrap" id="crew-curve-wrap" style="display:none">
-          <div class="chart-title">Total Site Crew Curve &mdash; Baseline vs Optimized (ALICE Data)</div>
+          <div class="chart-title">Crew Curve &mdash; Baseline vs Optimized</div>
           <div class="chart-sub">Daily headcount from ALICE crew exports</div>
-          <div id="chart-crew-curve" style="height:400px"></div>
-        </div>
-        <div class="chart-wrap" id="crew-trade-wrap" style="display:none">
-          <div class="chart-title">Crew Curves by Trade &mdash; Baseline vs Optimized</div>
-          <div class="chart-sub">Per-crew daily headcount comparison</div>
-          <div id="chart-crew-bytrade" style="height:500px"></div>
+          <div class="filter-bar" style="margin-bottom:8px">
+            <span class="filter-label">Crew:</span>
+            <select class="filter-select" id="crew-curve-filter" onchange="ATT.updateCrewCurve()">
+              <option value="__total__">All Crews (Total Site)</option>
+            </select>
+          </div>
+          <div id="chart-crew-curve" style="height:420px"></div>
         </div>
         <div class="chart-wrap">
           <div class="chart-title">Monthly Labor Demand &mdash; Baseline vs Optimized</div>

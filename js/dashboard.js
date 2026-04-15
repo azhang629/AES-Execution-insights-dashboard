@@ -444,7 +444,9 @@
       (filtered.length < diffs.length ? ' (' + diffs.length + ' total)' : '');
   };
 
-  // ── ALICE Crew Curves ──
+  // ── ALICE Crew Curves (single chart with filter) ──
+  var _crewCache = null;
+
   function renderAliceCrewCurves(bCrew, oCrew) {
     var wrap = document.getElementById('crew-curve-wrap');
     if (wrap) wrap.style.display = '';
@@ -454,68 +456,77 @@
     oCrew.dates.forEach(function (d) { allDates[d] = true; });
     var sortedDates = Object.keys(allDates).sort();
 
-    var bTotals = sortedDates.map(function (d) { return bCrew.dailyTotal[d] || 0; });
-    var oTotals = sortedDates.map(function (d) { return oCrew.dailyTotal[d] || 0; });
-
-    plotDark('chart-crew-curve', [
-      { type: 'scatter', mode: 'lines', name: 'Baseline', x: sortedDates, y: bTotals, line: { color: 'rgba(79,142,247,0.8)', width: 2 }, fill: 'tozeroy', fillcolor: 'rgba(79,142,247,0.1)' },
-      { type: 'scatter', mode: 'lines', name: 'Optimized', x: sortedDates, y: oTotals, line: { color: 'rgba(34,211,168,0.9)', width: 2 }, fill: 'tozeroy', fillcolor: 'rgba(34,211,168,0.1)' },
-    ], {
-      xaxis: { type: 'date', color: '#8899bb', gridcolor: '#2a3050' },
-      yaxis: { title: 'Total daily headcount', color: '#8899bb', gridcolor: '#2a3050' },
-      margin: { l: 60, r: 20, t: 10, b: 50 },
-      height: 400,
-      legend: { font: { color: '#8899bb' }, orientation: 'h', y: 1.05 },
-      annotations: [
-        { x: bCrew.peakDate ? bCrew.peakDate.toISOString().slice(0, 10) : '', y: bCrew.peakCount, text: 'Baseline peak: ' + bCrew.peakCount, showarrow: true, arrowhead: 2, ax: -40, ay: -30, font: { color: '#4f8ef7', size: 11 }, arrowcolor: '#4f8ef7' },
-        { x: oCrew.peakDate ? oCrew.peakDate.toISOString().slice(0, 10) : '', y: oCrew.peakCount, text: 'Optimized peak: ' + oCrew.peakCount, showarrow: true, arrowhead: 2, ax: 40, ay: -30, font: { color: '#22d3a8', size: 11 }, arrowcolor: '#22d3a8' },
-      ],
-    });
-
-    var tradeWrap = document.getElementById('crew-trade-wrap');
-    if (tradeWrap) tradeWrap.style.display = '';
-
     var allCrewNames = {};
     bCrew.crewNames.forEach(function (n) { allCrewNames[n] = true; });
     oCrew.crewNames.forEach(function (n) { allCrewNames[n] = true; });
-    var crewList = Object.keys(allCrewNames).sort();
-
-    var tradeTraces = [];
-    var tradeColors = ['#4f8ef7', '#22d3a8', '#f59e0b', '#a78bfa', '#f472b6', '#60a5fa', '#34d399', '#fb7185', '#e879f9', '#fbbf24'];
-
-    crewList.forEach(function (crew, idx) {
-      var bData = bCrew.crews[crew] || {};
-      var oData = oCrew.crews[crew] || {};
-      var bVals = sortedDates.map(function (d) { return bData[d] || 0; });
-      var oVals = sortedDates.map(function (d) { return oData[d] || 0; });
-      var bMax = Math.max.apply(null, bVals);
-      var oMax = Math.max.apply(null, oVals);
-      if (bMax < 1 && oMax < 1) return;
-
-      var color = tradeColors[idx % tradeColors.length];
-      tradeTraces.push({
-        type: 'scatter', mode: 'lines', name: crew + ' (Baseline)',
-        x: sortedDates, y: bVals,
-        line: { color: color, width: 1.5, dash: 'dot' },
-        legendgroup: crew, showlegend: true,
-        visible: 'legendonly',
+    var crewList = Object.keys(allCrewNames).sort().filter(function (name) {
+      var bD = bCrew.crews[name] || {}, oD = oCrew.crews[name] || {};
+      var bMax = 0, oMax = 0;
+      sortedDates.forEach(function (d) {
+        if ((bD[d] || 0) > bMax) bMax = bD[d];
+        if ((oD[d] || 0) > oMax) oMax = oD[d];
       });
-      tradeTraces.push({
-        type: 'scatter', mode: 'lines', name: crew + ' (Optimized)',
-        x: sortedDates, y: oVals,
-        line: { color: color, width: 2 },
-        legendgroup: crew, showlegend: true,
-        visible: 'legendonly',
-      });
+      return bMax >= 1 || oMax >= 1;
     });
 
-    plotDark('chart-crew-bytrade', tradeTraces, {
-      xaxis: { type: 'date', color: '#8899bb', gridcolor: '#2a3050' },
-      yaxis: { title: 'Daily headcount', color: '#8899bb', gridcolor: '#2a3050' },
-      margin: { l: 60, r: 20, t: 10, b: 50 },
-      height: 500,
-      legend: { font: { color: '#8899bb', size: 10 }, orientation: 'v', x: 1.02, y: 1 },
-    });
+    _crewCache = { bCrew: bCrew, oCrew: oCrew, sortedDates: sortedDates, crewList: crewList };
+
+    var sel = document.getElementById('crew-curve-filter');
+    if (sel) {
+      sel.innerHTML = '<option value="__total__">All Crews (Total Site)</option>' +
+        crewList.map(function (n) {
+          var label = (n || '').split(' - ')[0].replace(/_/g, ' ').trim();
+          return '<option value="' + n + '">' + label + '</option>';
+        }).join('');
+    }
+
+    ATT.updateCrewCurve();
   }
+
+  ATT.updateCrewCurve = function () {
+    if (!_crewCache) return;
+    var sel = document.getElementById('crew-curve-filter');
+    var chosen = sel ? sel.value : '__total__';
+    var bc = _crewCache.bCrew, oc = _crewCache.oCrew, dates = _crewCache.sortedDates;
+
+    var bVals, oVals, yTitle, bPeak = 0, bPeakDate = '', oPeak = 0, oPeakDate = '';
+
+    if (chosen === '__total__') {
+      bVals = dates.map(function (d) { return bc.dailyTotal[d] || 0; });
+      oVals = dates.map(function (d) { return oc.dailyTotal[d] || 0; });
+      yTitle = 'Total daily headcount';
+      bPeak = bc.peakCount; bPeakDate = bc.peakDate ? bc.peakDate.toISOString().slice(0, 10) : '';
+      oPeak = oc.peakCount; oPeakDate = oc.peakDate ? oc.peakDate.toISOString().slice(0, 10) : '';
+    } else {
+      var bD = bc.crews[chosen] || {}, oD = oc.crews[chosen] || {};
+      bVals = dates.map(function (d) { return bD[d] || 0; });
+      oVals = dates.map(function (d) { return oD[d] || 0; });
+      yTitle = 'Daily headcount';
+      for (var i = 0; i < dates.length; i++) {
+        if (bVals[i] > bPeak) { bPeak = bVals[i]; bPeakDate = dates[i]; }
+        if (oVals[i] > oPeak) { oPeak = oVals[i]; oPeakDate = dates[i]; }
+      }
+    }
+
+    var annotations = [];
+    if (bPeak > 0 && bPeakDate) {
+      annotations.push({ x: bPeakDate, y: bPeak, text: 'Baseline peak: ' + Math.round(bPeak), showarrow: true, arrowhead: 2, ax: -50, ay: -30, font: { color: '#4f8ef7', size: 11 }, arrowcolor: '#4f8ef7' });
+    }
+    if (oPeak > 0 && oPeakDate) {
+      annotations.push({ x: oPeakDate, y: oPeak, text: 'Optimized peak: ' + Math.round(oPeak), showarrow: true, arrowhead: 2, ax: 50, ay: -30, font: { color: '#22d3a8', size: 11 }, arrowcolor: '#22d3a8' });
+    }
+
+    plotDark('chart-crew-curve', [
+      { type: 'scatter', mode: 'lines', name: 'Baseline', x: dates, y: bVals, line: { color: 'rgba(79,142,247,0.8)', width: 2 }, fill: 'tozeroy', fillcolor: 'rgba(79,142,247,0.1)' },
+      { type: 'scatter', mode: 'lines', name: 'Optimized', x: dates, y: oVals, line: { color: 'rgba(34,211,168,0.9)', width: 2 }, fill: 'tozeroy', fillcolor: 'rgba(34,211,168,0.1)' },
+    ], {
+      xaxis: { type: 'date', color: '#8899bb', gridcolor: '#2a3050' },
+      yaxis: { title: yTitle, color: '#8899bb', gridcolor: '#2a3050' },
+      margin: { l: 60, r: 20, t: 10, b: 50 },
+      height: 420,
+      legend: { font: { color: '#8899bb' }, orientation: 'h', y: 1.05 },
+      annotations: annotations,
+    });
+  };
 
 })(window.ATT = window.ATT || {});
