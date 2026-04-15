@@ -336,57 +336,86 @@
     renderCPList(document.getElementById('cp-gained-float'), gainedFloat.concat(becameCritical));
     renderCPList(document.getElementById('cp-near-critical'), stillCritical);
 
-    // ── Gantt Chart: Critical Path Comparison (using CPM driving-path tasks) ──
-    var cpDiffs = diffs.filter(function (d) {
-        return d.bCpmCritical || d.oCpmCritical || d.bOnDrivingPath || d.oOnDrivingPath;
-      })
-      .filter(function (d) { return d.bStart && d.bEnd && d.oStart && d.oEnd; })
-      .sort(function (a, b) { return a.oStart - b.oStart; })
-      .slice(0, 30);
+    // ── Store schedule refs for the filter-driven Gantt ──
+    _cpCache = { baseline: baseline, optimized: optimized };
+    ATT.updateCPGantt();
+  }
 
-    if (!cpDiffs.length) {
-      cpDiffs = diffs.filter(function (d) { return d.bCritical || d.oCritical; })
-        .filter(function (d) { return d.bStart && d.bEnd && d.oStart && d.oEnd; })
-        .sort(function (a, b) { return a.oStart - b.oStart; })
-        .slice(0, 25);
+  var _cpCache = null;
+
+  ATT.updateCPGantt = function () {
+    if (!_cpCache) return;
+    var sel = document.getElementById('cp-gantt-filter');
+    var scenario = sel ? sel.value : 'optimized';
+    var sched = scenario === 'baseline' ? _cpCache.baseline : _cpCache.optimized;
+    var path = (sched.drivingPath || []).filter(function (t) {
+      return t.early_start && t.early_end;
+    });
+
+    if (!path.length) {
+      var fallback = Object.values(sched.taskById)
+        .filter(function (t) { return t.cpmCritical && t.early_start && t.early_end; })
+        .sort(function (a, b) { return a.early_start - b.early_start; });
+      path = fallback.slice(0, 30);
     }
 
-    if (cpDiffs.length > 0) {
-      var ganttTraces = [];
-      var yLabels = cpDiffs.map(function (d) { return d.task_name.substring(0, 40); });
+    var maxShow = 35;
+    var displayed = path.slice(0, maxShow);
+    if (!displayed.length) return;
 
-      for (var gi = 0; gi < cpDiffs.length; gi++) {
-        var gd = cpDiffs[gi];
-        ganttTraces.push({
+    var barColor = scenario === 'baseline'
+      ? 'rgba(79,142,247,0.85)'
+      : 'rgba(34,211,168,0.85)';
+    var connColor = scenario === 'baseline'
+      ? 'rgba(79,142,247,0.25)'
+      : 'rgba(34,211,168,0.25)';
+
+    var traces = [];
+    var yLabels = [];
+
+    for (var i = 0; i < displayed.length; i++) {
+      var t = displayed[i];
+      var label = t.task_name.length > 42 ? t.task_name.substring(0, 42) + '\u2026' : t.task_name;
+      var block = t.blockNotation || t.blockNum || '';
+      yLabels.push(block ? label + ' [' + block + ']' : label);
+
+      var floatTxt = t.cpmFloatDays != null ? t.cpmFloatDays.toFixed(1) + 'd' : '\u2014';
+
+      traces.push({
+        type: 'scatter', mode: 'lines',
+        x: [t.early_start, t.early_end],
+        y: [i, i],
+        line: { color: barColor, width: 16 },
+        showlegend: false,
+        hovertemplate: '<b>' + t.task_name.substring(0, 50) + '</b><br>' +
+          fmtDate(t.early_start) + ' \u2192 ' + fmtDate(t.early_end) +
+          '<br>Float: ' + floatTxt + '<extra></extra>',
+      });
+
+      if (i < displayed.length - 1) {
+        var next = displayed[i + 1];
+        traces.push({
           type: 'scatter', mode: 'lines',
-          x: [gd.bStart, gd.bEnd], y: [gi - 0.15, gi - 0.15],
-          line: { color: 'rgba(79,142,247,0.4)', width: 14 },
-          name: 'Baseline', legendgroup: 'baseline', showlegend: gi === 0,
-          hovertemplate: '<b>Baseline</b><br>' + gd.task_name.substring(0, 40) + '<br>' + fmtDate(gd.bStart) + ' \u2192 ' + fmtDate(gd.bEnd) + '<extra></extra>',
-        });
-        ganttTraces.push({
-          type: 'scatter', mode: 'lines',
-          x: [gd.oStart, gd.oEnd], y: [gi + 0.15, gi + 0.15],
-          line: { color: 'rgba(34,211,168,0.8)', width: 14 },
-          name: 'Optimized', legendgroup: 'optimized', showlegend: gi === 0,
-          hovertemplate: '<b>Optimized</b><br>' + gd.task_name.substring(0, 40) + '<br>' + fmtDate(gd.oStart) + ' \u2192 ' + fmtDate(gd.oEnd) + '<extra></extra>',
+          x: [t.early_end, next.early_start, next.early_start],
+          y: [i, i, i + 1],
+          line: { color: connColor, width: 1, dash: 'dot' },
+          showlegend: false, hoverinfo: 'skip',
         });
       }
-
-      plotDark('chart-gantt', ganttTraces, {
-        xaxis: { type: 'date', color: '#8899bb', gridcolor: '#2a3050' },
-        yaxis: {
-          tickvals: cpDiffs.map(function (d, i) { return i; }),
-          ticktext: yLabels,
-          autorange: 'reversed', color: '#e2e8f0', tickfont: { size: 10 },
-        },
-        margin: { l: 320, r: 30, t: 10, b: 50 },
-        height: Math.max(300, cpDiffs.length * 32 + 60),
-        legend: { font: { color: '#8899bb' }, orientation: 'h', y: 1.02 },
-        hovermode: 'closest',
-      });
     }
-  }
+
+    plotDark('chart-gantt', traces, {
+      xaxis: { type: 'date', color: '#8899bb', gridcolor: '#2a3050' },
+      yaxis: {
+        tickvals: displayed.map(function (d, idx) { return idx; }),
+        ticktext: yLabels,
+        autorange: 'reversed', color: '#e2e8f0', tickfont: { size: 10 },
+      },
+      margin: { l: 350, r: 30, t: 10, b: 50 },
+      height: Math.max(300, displayed.length * 30 + 60),
+      hovermode: 'closest',
+    });
+  };
 
   // ── CPM Validation Summary ──
   function renderCPMValidation(baseline, optimized, diffs) {

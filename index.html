@@ -243,8 +243,15 @@
         </div>
         <div class="stats-grid" id="cp-stats-grid" style="margin-bottom:20px"></div>
         <div class="chart-wrap">
-          <div class="chart-title">Critical Path Gantt &mdash; Baseline vs Optimized</div>
-          <div class="chart-sub">Top driving-path activities: blue = baseline dates, green = optimized dates</div>
+          <div class="chart-title">True Critical Path &mdash; Driving Chain</div>
+          <div class="chart-sub">Only activities on the longest path with zero float, shown in sequence</div>
+          <div class="filter-bar" style="margin-bottom:8px">
+            <span class="filter-label">Scenario:</span>
+            <select class="filter-select" id="cp-gantt-filter" onchange="ATT.updateCPGantt()">
+              <option value="optimized">Optimized Driving Path</option>
+              <option value="baseline">Baseline Driving Path</option>
+            </select>
+          </div>
           <div id="chart-gantt" style="min-height:300px"></div>
         </div>
         <div class="two-col">
