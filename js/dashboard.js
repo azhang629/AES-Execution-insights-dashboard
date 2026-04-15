@@ -436,9 +436,9 @@
     var discClass = totalDisc === 0 ? 'success' : totalDisc <= 10 ? 'accent' : 'warn';
 
     document.getElementById('cpm-validation-grid').innerHTML =
-      '<div class="stat-card accent"><div class="stat-label">Baseline CPM-Critical</div><div class="stat-value">' + bCritCount + '</div><div class="stat-detail">Driving path: ' + bDP + ' activities</div></div>' +
-      '<div class="stat-card accent"><div class="stat-label">Optimized CPM-Critical</div><div class="stat-value">' + oCritCount + '</div><div class="stat-detail">Driving path: ' + oDP + ' activities</div></div>' +
-      '<div class="stat-card ' + discClass + '"><div class="stat-label">Validation Agreement</div><div class="stat-value">' + (bv.agreementPct || 100) + '%</div><div class="stat-detail">' + totalDisc + ' discrepancies found</div></div>';
+      '<div class="stat-card accent"><div class="stat-label">Baseline Driving Path</div><div class="stat-value">' + bDP + ' tasks</div><div class="stat-detail">' + bCritCount + ' total near-critical activities</div></div>' +
+      '<div class="stat-card accent"><div class="stat-label">Optimized Driving Path</div><div class="stat-value">' + oDP + ' tasks</div><div class="stat-detail">' + oCritCount + ' total near-critical activities</div></div>' +
+      '<div class="stat-card ' + discClass + '"><div class="stat-label">Validation Agreement</div><div class="stat-value">' + (bv.agreementPct || 100) + '%</div><div class="stat-detail">' + totalDisc + ' discrepancies with ALICE flags</div></div>';
   }
 
   // ── Discrepancies Table ──
