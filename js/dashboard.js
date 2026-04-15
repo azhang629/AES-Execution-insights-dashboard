@@ -256,6 +256,45 @@
       renderAliceCrewCurves(R.bCrewData, R.oCrewData);
     }
 
+    var crewAction = (R.epcActions || []).filter(function (a) {
+      return a.crewShifts && a.crewShifts.length > 0;
+    })[0];
+
+    var summaryEl = document.getElementById('crew-ramp-summary');
+    if (!summaryEl) return;
+    if (!crewAction) { summaryEl.style.display = 'none'; return; }
+
+    summaryEl.style.display = '';
+    var bulletsHtml = '';
+    if (crewAction.bullets && crewAction.bullets.length) {
+      bulletsHtml = '<ul class="epc-bullets">' +
+        crewAction.bullets.map(function (b) { return '<li>' + b + '</li>'; }).join('') +
+      '</ul>';
+    }
+
+    var tableHtml = '<div class="epc-crew-table"><table>' +
+      '<thead><tr><th>Crew</th><th>Baseline Crew #</th><th>Baseline Peak Date</th><th>Optimized Crew #</th><th>Optimized Peak Date</th><th>Shift</th></tr></thead><tbody>' +
+      crewAction.crewShifts.map(function (c) {
+        var dir = c.shiftDays > 0 ? 'earlier' : 'later';
+        var cls = c.shiftDays > 0 ? 'epc-shift-pos' : 'epc-shift-neg';
+        return '<tr><td>' + c.name + '</td>' +
+          '<td>' + c.bPeak + '</td>' +
+          '<td>' + fmtDate(c.bDate) + '</td>' +
+          '<td>' + c.oPeak + '</td>' +
+          '<td>' + fmtDate(c.oDate) + '</td>' +
+          '<td class="' + cls + '">' + Math.abs(c.shiftDays) + 'd ' + dir + '</td></tr>';
+      }).join('') +
+      '</tbody></table></div>';
+
+    summaryEl.innerHTML =
+      '<div class="epc-action-card priority-high" style="margin-top:16px">' +
+        '<div class="epc-card-header">' +
+          '<div class="epc-num">\u{1F477}</div>' +
+          '<div class="epc-title">' + crewAction.title + '</div>' +
+          '<span class="priority-pill high">' + crewAction.priority + '</span>' +
+        '</div>' +
+        '<div class="epc-body">' + bulletsHtml + tableHtml + '</div>' +
+      '</div>';
   }
 
   // ── Critical Path ──
