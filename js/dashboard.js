@@ -298,84 +298,121 @@
   }
 
   // ── Critical Path ──
+  var MS_PER_DAY = 86400000;
   var _cpCache = null;
-  var _cpMethod = 'longest';
+  var _cpMethod = 'longest-path';
+  var _cpNCThreshold = 10;
 
   function renderCriticalPath(R) {
     var baseline = R.baseline, optimized = R.optimized;
     _cpCache = { baseline: baseline, optimized: optimized };
+    _cpMethod = 'longest-path';
+    _cpNCThreshold = 10;
 
-    var bLP = (baseline.drivingPath || []).length;
-    var oLP = (optimized.drivingPath || []).length;
+    var toggle = document.getElementById('cp-method-toggle');
+    if (toggle) {
+      toggle.querySelectorAll('.cp-method-btn').forEach(function (btn) {
+        btn.classList.toggle('active', btn.dataset.method === 'longest-path');
+      });
+    }
+    var ncWrap = document.getElementById('cp-tolerance-wrap');
+    if (ncWrap) ncWrap.style.display = 'none';
 
-    document.getElementById('cp-top-stats').innerHTML =
-      '<div class="stat-card accent"><div class="stat-label">Baseline Critical Tasks</div><div class="stat-value">' + bLP + '</div><div class="stat-detail">Activities driving baseline finish</div></div>' +
-      '<div class="stat-card accent"><div class="stat-label">Optimized Critical Tasks</div><div class="stat-value">' + oLP + '</div><div class="stat-detail">Activities driving optimized finish</div></div>';
-
-    _cpMethod = 'longest';
-    ATT.updateCPMethod();
+    updateCPStats();
+    ATT.updateCPGantt();
+    renderDiagnostics(R);
   }
 
   ATT.setCPMethod = function (method) {
     _cpMethod = method;
-    document.getElementById('cp-btn-longest').classList.toggle('active', method === 'longest');
-    document.getElementById('cp-btn-zerofloat').classList.toggle('active', method === 'zerofloat');
-    document.getElementById('cp-tolerance-wrap').style.display = method === 'zerofloat' ? '' : 'none';
-    ATT.updateCPMethod();
+    var toggle = document.getElementById('cp-method-toggle');
+    if (toggle) {
+      toggle.querySelectorAll('.cp-method-btn').forEach(function (btn) {
+        btn.classList.toggle('active', btn.dataset.method === method);
+      });
+    }
+    var desc = document.getElementById('cp-method-desc');
+    if (desc) {
+      desc.textContent = method === 'longest-path'
+        ? 'Traces the single continuous chain of driving logic from project start to the selected milestone.'
+        : 'All activities where Total Float \u2264 0. May produce multiple disconnected segments.';
+    }
+    var ncWrap = document.getElementById('cp-tolerance-wrap');
+    if (ncWrap) ncWrap.style.display = method === 'zero-float' ? '' : 'none';
+    var chartTitle = document.getElementById('cp-chart-title');
+    var chartSub = document.getElementById('cp-chart-sub');
+    if (method === 'longest-path') {
+      if (chartTitle) chartTitle.textContent = 'Longest Path \u2014 Driving Chain';
+      if (chartSub) chartSub.textContent = 'Activities on the driving logic chain from start to finish milestone';
+    } else {
+      if (chartTitle) chartTitle.textContent = 'Zero Total Float \u2014 Critical Activities';
+      if (chartSub) chartSub.textContent = 'All activities with total float \u2264 0 (may include multiple disconnected segments)';
+    }
+    updateCPStats();
+    ATT.updateCPGantt();
   };
 
-  ATT.updateCPMethod = function () {
+  ATT.updateNCThreshold = function (val) {
+    _cpNCThreshold = parseInt(val) || 10;
+    var label = document.getElementById('cp-nc-value');
+    if (label) label.textContent = _cpNCThreshold + 'd';
+    updateCPStats();
+  };
+
+  function updateCPStats() {
     if (!_cpCache) return;
-    var baseline = _cpCache.baseline, optimized = _cpCache.optimized;
+    var b = _cpCache.baseline, o = _cpCache.optimized;
+    var html = '';
+    if (_cpMethod === 'longest-path') {
+      var bLP = (b.drivingPath || []).length;
+      var oLP = (o.drivingPath || []).length;
+      var bZF = (b.zeroFloatPath || []).length;
+      var oZF = (o.zeroFloatPath || []).length;
+      html =
+        '<div class="stat-card accent"><div class="stat-label">Baseline LP Tasks</div><div class="stat-value">' + bLP + '</div><div class="stat-detail">Driving chain activities</div></div>' +
+        '<div class="stat-card accent"><div class="stat-label">Optimized LP Tasks</div><div class="stat-value">' + oLP + '</div><div class="stat-detail">Driving chain activities</div></div>' +
+        '<div class="stat-card warn"><div class="stat-label">Baseline TF\u22640</div><div class="stat-value">' + bZF + '</div><div class="stat-detail">Zero-float activities</div></div>' +
+        '<div class="stat-card warn"><div class="stat-label">Optimized TF\u22640</div><div class="stat-value">' + oZF + '</div><div class="stat-detail">Zero-float activities</div></div>';
+    } else {
+      var bZF2 = (b.zeroFloatPath || []).length;
+      var oZF2 = (o.zeroFloatPath || []).length;
+      var bSegs = b.cpmResult ? b.cpmResult.zeroFloat.segmentCount : 0;
+      var oSegs = o.cpmResult ? o.cpmResult.zeroFloat.segmentCount : 0;
+      var bNC = ATT.recomputeNearCritical(b, _cpNCThreshold).length;
+      var oNC = ATT.recomputeNearCritical(o, _cpNCThreshold).length;
+      html =
+        '<div class="stat-card warn"><div class="stat-label">Baseline TF\u22640</div><div class="stat-value">' + bZF2 + '</div><div class="stat-detail">' + bSegs + ' segment' + (bSegs !== 1 ? 's' : '') + '</div></div>' +
+        '<div class="stat-card warn"><div class="stat-label">Optimized TF\u22640</div><div class="stat-value">' + oZF2 + '</div><div class="stat-detail">' + oSegs + ' segment' + (oSegs !== 1 ? 's' : '') + '</div></div>' +
+        '<div class="stat-card accent"><div class="stat-label">Baseline Near-Crit</div><div class="stat-value">' + bNC + '</div><div class="stat-detail">0 < TF \u2264 ' + _cpNCThreshold + 'd</div></div>' +
+        '<div class="stat-card accent"><div class="stat-label">Optimized Near-Crit</div><div class="stat-value">' + oNC + '</div><div class="stat-detail">0 < TF \u2264 ' + _cpNCThreshold + 'd</div></div>';
+    }
+    document.getElementById('cp-top-stats').innerHTML = html;
+  }
+
+  ATT.updateCPGantt = function () {
+    if (!_cpCache) return;
+    var b = _cpCache.baseline, o = _cpCache.optimized;
     var scenarioSel = document.getElementById('cp-gantt-filter');
     var scenario = scenarioSel ? scenarioSel.value : 'both';
 
-    var toleranceEl = document.getElementById('cp-tolerance');
-    var tolerance = toleranceEl ? parseFloat(toleranceEl.value) || 0 : 0;
-    var tolLabel = document.getElementById('cp-tolerance-val');
-    if (tolLabel) tolLabel.textContent = tolerance + 'd';
-
-    var methodLabel = document.getElementById('cp-method-label');
-
-    // Get paths for each scenario
-    var bPath, oPath, methodName;
-    if (_cpMethod === 'longest') {
-      methodName = 'Longest Path';
-      bPath = (baseline.drivingPath || []).filter(function (t) { return t.early_start && t.early_end; });
-      oPath = (optimized.drivingPath || []).filter(function (t) { return t.early_start && t.early_end; });
-      if (methodLabel) methodLabel.innerHTML = '<strong>Method: Longest Path</strong> &mdash; Driving predecessor chain from project end. Shows the single continuous sequence that governs project completion.';
+    var bPath, oPath;
+    if (_cpMethod === 'longest-path') {
+      bPath = (b.drivingPath || []).filter(function (t) { return t.early_start && t.early_end; });
+      oPath = (o.drivingPath || []).filter(function (t) { return t.early_start && t.early_end; });
     } else {
-      methodName = 'Zero Total Float (' + tolerance + 'd tolerance)';
-      var bZF = ATT.getZeroFloatPaths(baseline, tolerance);
-      var oZF = ATT.getZeroFloatPaths(optimized, tolerance);
-      bPath = bZF.allTasks.filter(function (t) { return t.early_start && t.early_end; });
-      oPath = oZF.allTasks.filter(function (t) { return t.early_start && t.early_end; });
-
-      var fragNote = '';
-      if (bZF.fragmented || oZF.fragmented) {
-        fragNote = ' <span style="color:var(--warn)">Fragmented paths detected: Baseline has ' + bZF.pathCount + ' path(s), Optimized has ' + oZF.pathCount + ' path(s).</span>';
-      }
-      if (methodLabel) methodLabel.innerHTML = '<strong>Method: Zero Total Float</strong> (tolerance \u2264 ' + tolerance + 'd) &mdash; All activities with total float within tolerance, grouped into connected paths.' + fragNote;
-
-      document.getElementById('cp-top-stats').innerHTML =
-        '<div class="stat-card accent"><div class="stat-label">Baseline Zero-Float Tasks</div><div class="stat-value">' + bPath.length + '</div><div class="stat-detail">' + bZF.pathCount + ' path fragment(s)</div></div>' +
-        '<div class="stat-card accent"><div class="stat-label">Optimized Zero-Float Tasks</div><div class="stat-value">' + oPath.length + '</div><div class="stat-detail">' + oZF.pathCount + ' path fragment(s)</div></div>';
+      bPath = (b.zeroFloatPath || []).filter(function (t) { return t.early_start && t.early_end; });
+      oPath = (o.zeroFloatPath || []).filter(function (t) { return t.early_start && t.early_end; });
     }
 
     bPath.sort(function (a, b) { return a.early_start - b.early_start; });
     oPath.sort(function (a, b) { return a.early_start - b.early_start; });
 
-    // Build the Gantt
-    drawCPGantt(bPath, oPath, scenario, _cpMethod);
-
-    // Path summary
+    drawCPGantt(bPath, oPath, scenario);
     renderPathSummary(bPath, oPath, scenario);
-
-    // Diagnosis (always show to compare both methods)
-    renderCPDiagnosis(baseline, optimized, tolerance);
+    renderCPTable(bPath, oPath, scenario);
   };
 
-  function drawCPGantt(bPath, oPath, scenario, method) {
+  function drawCPGantt(bPath, oPath, scenario) {
     var traces = [];
     var yLabels = [];
     var maxShow = 40;
@@ -534,30 +571,83 @@
     el.innerHTML = html;
   }
 
-  var MS_PER_DAY = 86400000;
+  function renderDiagnostics(R) {
+    var el = document.getElementById('cp-diag-content');
+    var wrap = document.getElementById('cp-diagnostics');
+    if (!el || !wrap) return;
 
-  function renderCPDiagnosis(baseline, optimized, tolerance) {
-    var wrap = document.getElementById('cp-diagnosis-wrap');
-    var el = document.getElementById('cp-diagnosis');
-    if (!wrap || !el) return;
+    var bDiag = R.baseline.cpmResult ? R.baseline.cpmResult.diagnostics : null;
+    var oDiag = R.optimized.cpmResult ? R.optimized.cpmResult.diagnostics : null;
 
-    var bDiag = ATT.diagnoseCPMethods(baseline, tolerance);
-    var oDiag = ATT.diagnoseCPMethods(optimized, tolerance);
-
-    var html = '<div class="cp-diag-section"><strong>Baseline schedule</strong><ul>' +
-      bDiag.notes.map(function (n) { return '<li>' + n + '</li>'; }).join('') +
-    '</ul></div>';
-    html += '<div class="cp-diag-section"><strong>Optimized schedule</strong><ul>' +
-      oDiag.notes.map(function (n) { return '<li>' + n + '</li>'; }).join('') +
-    '</ul></div>';
-
-    if (bDiag.overlap === 0 && oDiag.overlap === 0 && bDiag.zfOnlyCount === 0 && oDiag.zfOnlyCount === 0) {
-      html += '<div class="cp-diag-note">The two methods produce identical results for both schedules.</div>';
+    var html = '';
+    if (bDiag && bDiag.notes.length > 0) {
+      html += '<div class="cp-diag-section"><strong>Baseline:</strong><ul>';
+      for (var i = 0; i < bDiag.notes.length; i++) html += '<li>' + bDiag.notes[i] + '</li>';
+      html += '</ul></div>';
+    }
+    if (oDiag && oDiag.notes.length > 0) {
+      html += '<div class="cp-diag-section"><strong>Optimized:</strong><ul>';
+      for (var j = 0; j < oDiag.notes.length; j++) html += '<li>' + oDiag.notes[j] + '</li>';
+      html += '</ul></div>';
     }
 
-    wrap.style.display = '';
+    if (!html) {
+      html = '<div style="color:var(--text-muted);font-size:12px">Both methods computed \u2014 no divergence notes available.</div>';
+    }
+
     el.innerHTML = html;
   }
+
+  function renderCPTable(bPath, oPath, scenario) {
+    var body = document.getElementById('cp-table-body');
+    var footer = document.getElementById('cp-table-footer');
+    if (!body) return;
+
+    var path;
+    if (scenario === 'optimized') path = oPath;
+    else if (scenario === 'baseline') path = bPath;
+    else path = oPath.length ? oPath : bPath;
+
+    var label = scenario === 'baseline' ? 'Baseline' : scenario === 'optimized' ? 'Optimized' : (oPath.length ? 'Optimized' : 'Baseline');
+    var subEl = document.getElementById('cp-table-sub');
+    if (subEl) subEl.textContent = label + ' \u2014 ' + (_cpMethod === 'longest-path' ? 'driving chain' : 'zero-float') + ' activities';
+
+    var maxShow = 100;
+    var shown = path.slice(0, maxShow);
+
+    body.innerHTML = shown.map(function (t) {
+      var tf = t.cpmTotalFloat != null ? t.cpmTotalFloat.toFixed(1) + 'd' : (t.cpmFloatDays != null ? t.cpmFloatDays.toFixed(1) + 'd' : '\u2014');
+      var ff = t.cpmFreeFloat != null ? t.cpmFreeFloat.toFixed(1) + 'd' : '\u2014';
+      var durDays = t.calDurationMs ? (t.calDurationMs / 86400000).toFixed(1) + 'd' : '\u2014';
+      var driverName = '\u2014';
+      if (t.drivingPredId && _cpCache) {
+        var sched = scenario === 'baseline' ? _cpCache.baseline : _cpCache.optimized;
+        var driverTask = sched.taskById[t.drivingPredId];
+        if (driverTask) driverName = driverTask.task_name.length > 35 ? driverTask.task_name.substring(0, 35) + '\u2026' : driverTask.task_name;
+      }
+      var tfClass = '';
+      if (t.cpmTotalFloat != null) {
+        if (t.cpmTotalFloat <= 0) tfClass = ' class="badge badge-crit"';
+        else if (t.cpmTotalFloat <= 10) tfClass = ' class="badge badge-pos"';
+      }
+      return '<tr>' +
+        '<td style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + t.task_name + '">' + t.task_name + '</td>' +
+        '<td>' + (t.blockNotation || t.blockNum || '\u2014') + '</td>' +
+        '<td style="white-space:nowrap">' + fmtDate(t.early_start) + '</td>' +
+        '<td style="white-space:nowrap">' + fmtDate(t.early_end) + '</td>' +
+        '<td>' + durDays + '</td>' +
+        '<td><span' + tfClass + '>' + tf + '</span></td>' +
+        '<td>' + ff + '</td>' +
+        '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;color:var(--text-muted)" title="' + (driverName !== '\u2014' ? driverName : '') + '">' + driverName + '</td>' +
+      '</tr>';
+    }).join('');
+
+    if (footer) {
+      footer.textContent = 'Showing ' + shown.length + ' of ' + path.length + ' ' + label.toLowerCase() + ' activities';
+    }
+  }
+
+  var MS_PER_DAY = 86400000;
 
   // ── Requirements ──
   function renderRequirements(R) {

@@ -217,54 +217,69 @@
       <div class="tab-panel" id="tab-critical">
         <div class="section-header">
           <div class="section-title">Critical Path Analysis</div>
-          <div class="section-sub">Independent CPM recalculation with two selectable definitions</div>
+          <div class="section-sub">Two complementary methods to identify the schedule's driving chain</div>
         </div>
 
-        <!-- Top-level task counts -->
         <div class="stats-grid" id="cp-top-stats" style="margin-bottom:16px"></div>
 
-        <!-- Method selector + controls -->
         <div class="cp-controls">
-          <div class="cp-method-toggle">
-            <button class="cp-method-btn active" id="cp-btn-longest" onclick="ATT.setCPMethod('longest')">Longest Path</button>
-            <button class="cp-method-btn" id="cp-btn-zerofloat" onclick="ATT.setCPMethod('zerofloat')">Zero Total Float</button>
+          <div class="cp-method-toggle" id="cp-method-toggle">
+            <button class="cp-method-btn active" data-method="longest-path" onclick="ATT.setCPMethod('longest-path')">Longest Path</button>
+            <button class="cp-method-btn" data-method="zero-float" onclick="ATT.setCPMethod('zero-float')">Zero Total Float</button>
+          </div>
+          <div class="cp-method-label" id="cp-method-desc">
+            Traces the single continuous chain of driving logic from project start to the selected milestone.
           </div>
           <div class="cp-control-row">
-            <div class="cp-tolerance-wrap" id="cp-tolerance-wrap" style="display:none">
-              <span class="filter-label">Float tolerance:</span>
-              <input type="range" id="cp-tolerance" min="0" max="5" step="0.5" value="0" oninput="ATT.updateCPMethod()">
-              <span id="cp-tolerance-val" style="font-size:12px;color:var(--text-muted);min-width:30px">0d</span>
-            </div>
             <div>
               <span class="filter-label">Scenario:</span>
-              <select class="filter-select" id="cp-gantt-filter" onchange="ATT.updateCPMethod()">
+              <select class="filter-select" id="cp-gantt-filter" onchange="ATT.updateCPGantt()">
                 <option value="both">Both (Baseline &amp; Optimized)</option>
                 <option value="baseline">Baseline only</option>
                 <option value="optimized">Optimized only</option>
               </select>
             </div>
+            <div class="cp-tolerance-wrap" id="cp-tolerance-wrap" style="display:none">
+              <span class="filter-label">Near-critical threshold:</span>
+              <input type="range" id="cp-nc-threshold" min="1" max="30" value="10" oninput="ATT.updateNCThreshold(this.value)">
+              <span id="cp-nc-value" style="font-size:12px;color:var(--text-muted);min-width:30px">10d</span>
+            </div>
           </div>
         </div>
 
-        <!-- Method label -->
-        <div id="cp-method-label" class="cp-method-label"></div>
-
-        <!-- Critical path chart -->
         <div class="chart-wrap">
+          <div class="chart-title" id="cp-chart-title">Longest Path &mdash; Driving Chain</div>
+          <div class="chart-sub" id="cp-chart-sub">Activities on the driving logic chain from start to finish milestone</div>
           <div id="chart-gantt" style="min-height:300px"></div>
         </div>
 
-        <!-- Path summary -->
         <div id="cp-path-summary" class="cp-path-summary" style="display:none"></div>
 
-        <!-- Diagnosis: why methods differ -->
-        <div id="cp-diagnosis-wrap" style="display:none;margin-top:20px">
-          <div class="section-header">
-            <div class="section-title" style="font-size:15px">Why do the two methods differ?</div>
-            <div class="section-sub">Comparison of Zero Float vs Longest Path results</div>
-          </div>
-          <div id="cp-diagnosis" class="cp-diagnosis"></div>
+        <div class="cp-diagnosis" id="cp-diagnostics" style="margin-top:16px">
+          <div style="font-size:14px;font-weight:700;margin-bottom:10px">Method Comparison</div>
+          <div id="cp-diag-content"></div>
         </div>
+
+        <div class="section-header" style="margin-top:20px">
+          <div class="section-title" style="font-size:14px">Critical Path Activities</div>
+          <div class="section-sub" id="cp-table-sub">Activities on the selected path</div>
+        </div>
+        <div class="data-table-wrap" id="cp-table-wrap">
+          <table class="data-table">
+            <thead><tr>
+              <th>Activity</th>
+              <th>Block</th>
+              <th>Start</th>
+              <th>Finish</th>
+              <th>Duration</th>
+              <th>Total Float</th>
+              <th>Free Float</th>
+              <th>Driving Pred</th>
+            </tr></thead>
+            <tbody id="cp-table-body"></tbody>
+          </table>
+        </div>
+        <div id="cp-table-footer" style="font-size:12px;color:var(--text-muted);padding:8px 0"></div>
       </div>
 
     </div><!-- /tab-content -->
