@@ -351,14 +351,21 @@
       }
     }
 
+    var maxLabelLen = 0;
+    for (var li = 0; li < yLabels.length; li++) {
+      if (yLabels[li].length > maxLabelLen) maxLabelLen = yLabels[li].length;
+    }
+    var leftMargin = Math.min(400, Math.max(100, maxLabelLen * 7 + 20));
+    var rowHeight = rows.length <= 15 ? 36 : rows.length <= 40 ? 28 : 22;
+
     plotDark('chart-workfront', traces, {
-      xaxis: { type: 'date', color: '#8899bb', gridcolor: '#2a3050' },
+      xaxis: { type: 'date', color: '#8899bb', gridcolor: '#2a3050', automargin: true },
       yaxis: {
         categoryorder: 'array', categoryarray: yLabels.slice().reverse(),
-        color: '#e2e8f0', tickfont: { size: 10 },
+        color: '#e2e8f0', tickfont: { size: rows.length > 40 ? 9 : 10 }, automargin: true,
       },
-      margin: { l: chosenComm === '__all__' ? 260 : 120, r: 30, t: 10, b: 50 },
-      height: Math.max(350, rows.length * 28 + 80),
+      margin: { l: leftMargin, r: 30, t: 10, b: 50 },
+      height: Math.max(350, rows.length * rowHeight + 80),
       hovermode: 'closest',
       legend: { font: { color: '#8899bb' }, orientation: 'h', y: 1.05 },
     });
