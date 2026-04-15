@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ALICE Tactic Translator | Schedule Intelligence Dashboard</title>
+<script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<!-- ── UPLOAD SCREEN ── -->
+<div id="upload-screen">
+  <div class="upload-hero">
+    <h1>ALICE Tactic Translator</h1>
+    <p>Upload two ALICE schedule CSV exports &mdash; a baseline and an optimized scenario &mdash; to generate a plain-English explanation of how ALICE achieved the schedule improvement.</p>
+  </div>
+  <div class="upload-grid">
+    <div class="upload-box" id="card-baseline">
+      <div class="ub-icon">&nbsp;&#x1F4CB;</div>
+      <div class="ub-title">Baseline Schedule</div>
+      <div class="ub-hint">Risk / conservative scenario</div>
+      <button type="button" class="ub-btn" id="btn-pick-baseline">Choose CSV File</button>
+      <div class="ub-status" id="fn-baseline"></div>
+    </div>
+    <div class="upload-box" id="card-optimized">
+      <div class="ub-icon">&nbsp;&#x26A1;</div>
+      <div class="ub-title">Optimized Schedule</div>
+      <div class="ub-hint">De-risk / accelerated scenario</div>
+      <button type="button" class="ub-btn" id="btn-pick-optimized">Choose CSV File</button>
+      <div class="ub-status" id="fn-optimized"></div>
+    </div>
+    <div class="upload-dropzone" id="dropzone">
+      <p>Or drag &amp; drop CSV files here</p>
+    </div>
+  </div>
+  <button class="btn-analyze" id="btn-analyze" onclick="ATT.runAnalysis()" disabled>
+    Analyze Schedules &rarr;
+  </button>
+  <div style="font-size:12px;color:var(--text-dim);text-align:center">
+    All processing happens in your browser. No data leaves your device.
+  </div>
+  <div id="upload-error" style="color:#fb7185;font-size:13px;margin-top:16px;max-width:700px;word-break:break-word;display:none"></div>
+</div>
+
+<!-- ── LOADING SCREEN ── -->
+<div id="loading-screen">
+  <div class="loading-orb"></div>
+  <div class="loading-text">Analyzing schedules&hellip;</div>
+  <div class="loading-stage" id="loading-stage">Parsing CSV files</div>
+  <div class="loading-bar-wrap">
+    <div class="loading-bar" id="loading-bar"></div>
+  </div>
+</div>
+
+<!-- ── MAIN APP ── -->
+<div id="app">
+  <div class="app-header">
+    <div class="header-logo">
+      <div class="header-logo-mark">A</div>
+      <div class="header-logo-text">Tactic Translator</div>
+    </div>
+    <div class="header-sep"></div>
+    <div class="header-project" id="header-project">Sycamore Cross</div>
+    <div class="header-right">
+      <div class="gain-badge" id="gain-badge">0 days saved</div>
+      <button class="btn-reset" onclick="ATT.resetApp()">&#x21A9; New Analysis</button>
+    </div>
+  </div>
+  <div class="tab-nav">
+    <button class="tab-btn active" data-tab="executive">Executive Summary</button>
+    <button class="tab-btn" data-tab="tactics">Tactic Buckets <span class="tab-indicator" id="ti-tactics">0</span></button>
+    <button class="tab-btn" data-tab="areas">Area &amp; Commodity</button>
+    <button class="tab-btn" data-tab="crew">Crew Timeline</button>
+    <button class="tab-btn" data-tab="critical">Critical Path</button>
+  </div>
+  <div id="mc-warning" style="display:none;margin:12px 24px 0;padding:12px 18px;border-radius:8px;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.35);color:#f59e0b;font-size:13px;line-height:1.5"></div>
+  <div class="app-body">
+    <div class="tab-content">
+
+      <!-- TAB: Executive Summary -->
+      <div class="tab-panel active" id="tab-executive">
+        <div class="stats-grid" id="stats-grid"></div>
+        <div class="section-header" style="margin-top:8px">
+          <div class="section-title">EPC Action Plan</div>
+          <div class="section-sub" id="epc-actions-sub">What the EPC must execute differently to realize the schedule acceleration</div>
+        </div>
+        <div class="epc-actions-list" id="epc-actions-list"></div>
+        <div class="section-header" style="margin-top:32px">
+          <div class="section-title">Key Execution Insights</div>
+          <div class="section-sub">Top themes explaining how the optimized schedule works</div>
+        </div>
+        <div class="insights-grid" id="insights-grid"></div>
+        <div class="two-col" style="margin-top:32px">
+          <div class="chart-wrap">
+            <div class="chart-title">Where the Schedule Gain Comes From</div>
+            <div class="chart-sub">Estimated days recovered by tactic bucket</div>
+            <div id="chart-waterfall" style="height:300px"></div>
+          </div>
+          <div class="chart-wrap">
+            <div class="chart-title">Gain by Commodity</div>
+            <div class="chart-sub">Activities with the largest finish date improvement</div>
+            <div id="chart-commodity" style="height:300px"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB: Tactic Buckets -->
+      <div class="tab-panel" id="tab-tactics">
+        <div class="section-header">
+          <div class="section-title">Tactic Classification</div>
+          <div class="section-sub">Rules-based analysis of how each schedule change was achieved</div>
+        </div>
+        <div class="tactic-grid" id="tactic-grid"></div>
+        <div class="chart-wrap">
+          <div class="chart-title">Top 20 Highest-Impact Activity Changes</div>
+          <div class="chart-sub">Finish date improvement in calendar days</div>
+          <div id="chart-top20" style="height:420px"></div>
+        </div>
+        <div class="section-header" style="margin-top:8px">
+          <div class="section-title">Classification Rules</div>
+          <div class="section-sub">Transparent logic behind each tactic assignment</div>
+        </div>
+        <div class="data-table-wrap">
+          <table class="data-table">
+            <thead><tr><th>Tactic</th><th>Primary Signals</th><th>Example Pattern</th></tr></thead>
+            <tbody id="rules-table"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- TAB: Area & Commodity -->
+      <div class="tab-panel" id="tab-areas">
+        <div class="section-header">
+          <div class="section-title">Area &amp; Commodity Drill-down</div>
+          <div class="section-sub">Where the biggest tactical shifts occurred across the project</div>
+        </div>
+        <div class="two-col">
+          <div class="chart-wrap">
+            <div class="chart-title">Finish Date Shift by Block</div>
+            <div class="chart-sub">Average days earlier per block (negative = earlier completion)</div>
+            <div id="chart-block" style="height:300px"></div>
+          </div>
+          <div class="chart-wrap">
+            <div class="chart-title">Tactic Mix by Trade</div>
+            <div class="chart-sub">How changes were distributed across commodities</div>
+            <div id="chart-trade-mix" style="height:300px"></div>
+          </div>
+        </div>
+        <div class="section-header">
+          <div class="section-title">Activity Change Table</div>
+          <div class="section-sub">Filter and sort all matched activities</div>
+        </div>
+        <div class="filter-bar">
+          <span class="filter-label">Filter by:</span>
+          <select class="filter-select" id="filter-commodity" onchange="ATT.renderActivityTable()"><option value="">All Trades</option></select>
+          <select class="filter-select" id="filter-block" onchange="ATT.renderActivityTable()"><option value="">All Blocks</option></select>
+          <select class="filter-select" id="filter-tactic" onchange="ATT.renderActivityTable()"><option value="">All Tactics</option></select>
+          <select class="filter-select" id="filter-impact" onchange="ATT.renderActivityTable()">
+            <option value="">All Changes</option>
+            <option value="improved">Improved (earlier)</option>
+            <option value="worsened">Worsened (later)</option>
+            <option value="major">Major (&gt;7 days)</option>
+          </select>
+        </div>
+        <div class="data-table-wrap">
+          <table class="data-table">
+            <thead><tr>
+              <th onclick="ATT.sortTable('task_name')">Activity</th>
+              <th onclick="ATT.sortTable('commodity')">Trade</th>
+              <th onclick="ATT.sortTable('blockNum')">Block</th>
+              <th onclick="ATT.sortTable('startVar')">Start &Delta;</th>
+              <th onclick="ATT.sortTable('finishVar')">Finish &Delta;</th>
+              <th onclick="ATT.sortTable('durVar')">Duration &Delta;</th>
+              <th onclick="ATT.sortTable('floatVar')">Float &Delta;</th>
+              <th onclick="ATT.sortTable('laborVar')">Crew &Delta;</th>
+              <th>Primary Tactic</th>
+            </tr></thead>
+            <tbody id="activity-table-body"></tbody>
+          </table>
+        </div>
+        <div id="activity-table-footer" style="font-size:12px;color:var(--text-muted);padding:8px 0"></div>
+      </div>
+
+      <!-- TAB: Crew Timeline -->
+      <div class="tab-panel" id="tab-crew">
+        <div class="section-header">
+          <div class="section-title">Time-Phased Crew &amp; Activity View</div>
+          <div class="section-sub">When crew ramps, intensity, or resequencing changed materially</div>
+        </div>
+        <div class="chart-wrap">
+          <div class="chart-title">Monthly Labor Demand &mdash; Baseline vs Optimized</div>
+          <div class="chart-sub">Total labor crew-hours per month across all activities</div>
+          <div id="chart-monthly-crew" style="height:340px"></div>
+        </div>
+        <div class="chart-wrap">
+          <div class="chart-title">Activity Start Density Over Time</div>
+          <div class="chart-sub">Number of new activities starting each month, by commodity</div>
+          <div id="chart-density" style="height:300px"></div>
+        </div>
+      </div>
+
+      <!-- TAB: Critical Path -->
+      <div class="tab-panel" id="tab-critical">
+        <div class="section-header">
+          <div class="section-title">Critical Path Shifts</div>
+          <div class="section-sub">Activities that moved onto or off the critical path, and where schedule slack changed</div>
+        </div>
+        <div class="stats-grid" id="cp-stats-grid" style="margin-bottom:20px"></div>
+        <div class="chart-wrap">
+          <div class="chart-title">Critical Path Gantt &mdash; Baseline vs Optimized</div>
+          <div class="chart-sub">Top driving-path activities: blue = baseline dates, green = optimized dates</div>
+          <div id="chart-gantt" style="min-height:300px"></div>
+        </div>
+        <div class="two-col">
+          <div>
+            <div class="section-header"><div class="section-title" style="font-size:15px">Moved Off Critical Path</div><div class="section-sub">(gained float in optimized)</div></div>
+            <div class="cp-flow" id="cp-gained-float"></div>
+          </div>
+          <div>
+            <div class="section-header"><div class="section-title" style="font-size:15px">Near-Critical in Both</div><div class="section-sub">(finish close to project end)</div></div>
+            <div class="cp-flow" id="cp-near-critical"></div>
+          </div>
+        </div>
+        <div class="chart-wrap">
+          <div class="chart-title">Float Change Distribution</div>
+          <div class="chart-sub">How total float (schedule slack) changed across the project</div>
+          <div id="chart-float" style="height:280px"></div>
+        </div>
+      </div>
+
+    </div><!-- /tab-content -->
+
+    <!-- Agent Panel -->
+    <div class="agent-panel">
+      <div class="agent-header">
+        <div class="agent-dot"></div>
+        <div class="agent-title">Schedule Analyst</div>
+        <div class="agent-hint">AI-powered Q&amp;A</div>
+      </div>
+      <div class="agent-messages" id="agent-messages">
+        <div class="msg-welcome">
+          <strong>Schedule Analyst ready</strong>
+          Ask me anything about the schedule changes. I'll explain what drove the gains and what your team needs to do differently.
+        </div>
+      </div>
+      <div class="agent-suggestions" id="agent-suggestions">
+        <div class="suggestion-chip" onclick="ATT.askAgent('What drove the most schedule gain?')">What drove the most gain?</div>
+        <div class="suggestion-chip" onclick="ATT.askAgent('What changed on the critical path?')">Critical path changes?</div>
+        <div class="suggestion-chip" onclick="ATT.askAgent('Which block improved the most?')">Best block?</div>
+        <div class="suggestion-chip" onclick="ATT.askAgent('What do field teams need to do differently?')">Field team actions?</div>
+        <div class="suggestion-chip" onclick="ATT.askAgent('What are the mechanical completion dates?')">MC dates?</div>
+        <div class="suggestion-chip" onclick="ATT.askAgent('Which crews peak at different times?')">Crew peak timing?</div>
+        <div class="suggestion-chip" onclick="ATT.askAgent('Where is the biggest crew intensity change?')">Crew intensity?</div>
+        <div class="suggestion-chip" onclick="ATT.askAgent('What are the top resequencing changes?')">Resequencing?</div>
+        <div class="suggestion-chip" onclick="ATT.askAgent('How did float change across the project?')">Float changes?</div>
+        <div class="suggestion-chip" onclick="ATT.askAgent('What are the constraint relief changes?')">Constraint relief?</div>
+      </div>
+      <div class="agent-input-row">
+        <input class="agent-input" id="agent-input" placeholder="Ask about the schedule&hellip;" onkeydown="if(event.key==='Enter')ATT.sendAgent()">
+        <button class="btn-send" onclick="ATT.sendAgent()">&rarr;</button>
+      </div>
+    </div>
+  </div><!-- /app-body -->
+</div><!-- /app -->
+
+<!-- Module scripts loaded in dependency order -->
+<script src="js/utils.js"></script>
+<script src="js/csv-parser.js"></script>
+<script src="js/schedule-model.js"></script>
+<script src="js/matcher.js"></script>
+<script src="js/differ.js"></script>
+<script src="js/tactic-classifier.js"></script>
+<script src="js/aggregator.js"></script>
+<script src="js/insight-generator.js"></script>
+<script src="js/epc-actions.js"></script>
+<script src="js/requirements.js"></script>
+<script src="js/charts.js"></script>
+<script src="js/dashboard.js"></script>
+<script src="js/agent.js"></script>
+<script src="js/app.js"></script>
+
+</body>
+</html>

@@ -1,0 +1,412 @@
+(function (ATT) {
+  'use strict';
+
+  var TACTICS = ATT.TACTICS;
+  var TACTIC_COLORS = ATT.TACTIC_COLORS;
+  var TACTIC_RULES = ATT.TACTIC_RULES;
+  var fmtDate = ATT.fmtDate;
+  var fmtDays = ATT.fmtDays;
+  var dateDiffDays = ATT.dateDiffDays;
+  var plotDark = ATT.plotDark;
+
+  var tableSort = { col: 'finishVar', dir: 1 };
+
+  // ── Master render ──
+  ATT.renderDashboard = function (R) {
+    renderExecutiveSummary(R);
+    renderEPCActions(R);
+    renderTacticBuckets(R);
+    renderAreaCommodity(R);
+    renderCrewTimeline(R);
+    renderCriticalPath(R);
+    populateFilters(R);
+    ATT.renderActivityTable();
+  };
+
+  // ── Executive Summary ──
+  function renderExecutiveSummary(R) {
+    var totalGainDays = R.totalGainDays, usingMC = R.usingMC, matchCount = R.matchCount, changedCount = R.changedCount;
+    var aggregations = R.aggregations, diffs = R.diffs, insights = R.insights;
+    var bMCDate = R.bMCDate, oMCDate = R.oMCDate;
+    var bEndDate = R.bEndDate, oEndDate = R.oEndDate;
+    var critChanges = diffs.filter(function (d) { return d.bCritical !== d.oCritical; }).length;
+
+    var accelLabel, accelDetail;
+    if (usingMC) {
+      accelLabel = 'MC Acceleration';
+      accelDetail = 'Mechanical Completion: ' + fmtDate(bMCDate) + ' \u2192 ' + fmtDate(oMCDate);
+    } else if (bMCDate && !oMCDate) {
+      accelLabel = 'MC Acceleration (partial)';
+      accelDetail = 'Baseline MC: ' + fmtDate(bMCDate) + ' \u2014 Optimized MC: not found';
+    } else if (!bMCDate && oMCDate) {
+      accelLabel = 'MC Acceleration (partial)';
+      accelDetail = 'Baseline MC: not found \u2014 Optimized MC: ' + fmtDate(oMCDate);
+    } else {
+      accelLabel = 'Schedule Acceleration';
+      accelDetail = fmtDate(bEndDate) + ' \u2192 ' + fmtDate(oEndDate);
+    }
+
+    var warningHtml = '';
+    if (R.mcWarning) {
+      warningHtml = '<div class="stat-card" style="grid-column:1/-1;padding:14px 18px;border-color:rgba(245,158,11,.4);background:rgba(245,158,11,.06)"><div style="display:flex;align-items:center;gap:10px"><span style="font-size:20px">\u26A0\uFE0F</span><div><div style="font-size:13px;font-weight:600;color:#f59e0b;margin-bottom:2px">Mechanical Completion Warning</div><div style="font-size:12px;color:var(--text-muted);line-height:1.5">' + R.mcWarning + '</div></div></div></div>';
+    }
+
+    document.getElementById('stats-grid').innerHTML =
+      warningHtml +
+      '<div class="stat-card success"><div class="stat-label">' + accelLabel + '</div><div class="stat-value">' + totalGainDays + 'd</div><div class="stat-detail">' + accelDetail + '</div></div>' +
+      '<div class="stat-card accent"><div class="stat-label">Activities Compared</div><div class="stat-value">' + matchCount.toLocaleString() + '</div><div class="stat-detail">' + changedCount + ' with meaningful changes</div></div>' +
+      '<div class="stat-card warn"><div class="stat-label">Critical Path Changes</div><div class="stat-value">' + critChanges + '</div><div class="stat-detail">Activities moving on/off driving path</div></div>' +
+      '<div class="stat-card accent"><div class="stat-label">Tactic Buckets</div><div class="stat-value">' + Object.keys(aggregations.byTactic).length + '</div><div class="stat-detail">Distinct optimization strategies used</div></div>';
+
+    // Waterfall chart
+    var sortedTactics = Object.entries(aggregations.byTactic)
+      .map(function (e) { return { name: e[0], days: e[1].scaledDays || 0, count: e[1].count }; })
+      .sort(function (a, b) { return b.days - a.days; });
+
+    plotDark('chart-waterfall', [{
+      type: 'bar', orientation: 'h',
+      x: sortedTactics.map(function (t) { return t.days; }),
+      y: sortedTactics.map(function (t) { return t.name; }),
+      marker: { color: sortedTactics.map(function (t) { return TACTIC_COLORS[t.name] || '#4f8ef7'; }) },
+      text: sortedTactics.map(function (t) { return t.days + 'd \u00B7 ' + t.count + ' activities'; }),
+      textposition: 'outside',
+      hovertemplate: '<b>%{y}</b><br>~%{x} days<extra></extra>',
+    }], {
+      xaxis: { title: 'Schedule Days Recovered', color: '#8899bb', gridcolor: '#2a3050' },
+      yaxis: { autorange: 'reversed', color: '#e2e8f0', tickfont: { size: 11 } },
+      margin: { l: 200, r: 100, t: 10, b: 40 },
+      height: 300,
+    });
+
+    // Commodity donut
+    var commData = Object.entries(aggregations.byCommodity)
+      .map(function (e) { return { name: e[0], val: Math.abs(e[1].totalFinishVar) }; })
+      .sort(function (a, b) { return b.val - a.val; }).slice(0, 8);
+    plotDark('chart-commodity', [{
+      type: 'pie',
+      labels: commData.map(function (c) { return c.name; }),
+      values: commData.map(function (c) { return c.val; }),
+      hole: 0.5,
+      marker: { colors: ['#4f8ef7', '#22d3a8', '#f59e0b', '#a78bfa', '#f472b6', '#60a5fa', '#34d399', '#fb7185'] },
+      textinfo: 'label+percent',
+      textfont: { color: '#e2e8f0', size: 11 },
+      hovertemplate: '<b>%{label}</b><br>%{value:.0f} days total shift<extra></extra>',
+    }], { margin: { l: 20, r: 20, t: 20, b: 20 }, height: 300, showlegend: false });
+
+    // Insights
+    document.getElementById('insights-grid').innerHTML = insights.map(function (ins) {
+      return '<div class="insight-card" style="border-left-color:' + (TACTIC_COLORS[ins.tactic] || '#4f8ef7') + '"><div class="insight-tactic">' + ins.tactic + '</div><div class="insight-text">' + ins.text + '<br><br><em style="color:var(--text-muted)">' + ins.exec + '</em></div>' + (ins.days ? '<div class="insight-impact">~' + ins.days + ' days</div>' : '') + '</div>';
+    }).join('');
+  }
+
+  // ── EPC Actions ──
+  function renderEPCActions(R) {
+    var epcActions = R.epcActions, totalGainDays = R.totalGainDays, usingMC = R.usingMC;
+    if (!epcActions || !epcActions.length) return;
+    var sub = document.getElementById('epc-actions-sub');
+    if (sub) sub.textContent = 'What the EPC must execute differently to realize the ' + totalGainDays + '-day ' + (usingMC ? 'Mechanical Completion ' : '') + 'acceleration';
+    var list = document.getElementById('epc-actions-list');
+    if (!list) return;
+    list.innerHTML = epcActions.map(function (a, i) {
+      var pCls = a.priority.toLowerCase();
+      return '<div class="epc-action priority-' + pCls + '"><div class="epc-num">' + (i + 1) + '</div><div><div class="epc-title">' + a.title + '</div><div class="epc-detail">' + a.detail + '</div></div><div class="epc-meta"><span class="priority-pill ' + pCls + '">' + a.priority + '</span>' + (a.by ? '<div class="epc-by">by ' + a.by + '</div>' : '') + '</div></div>';
+    }).join('');
+  }
+
+  // ── Tactic Buckets ──
+  function renderTacticBuckets(R) {
+    var aggregations = R.aggregations, diffs = R.diffs;
+    var sortedTactics = Object.entries(aggregations.byTactic)
+      .map(function (e) { return { name: e[0], count: e[1].count, scaledDays: e[1].scaledDays, diffs: e[1].diffs }; })
+      .sort(function (a, b) { return b.scaledDays - a.scaledDays; });
+
+    var maxDays = sortedTactics[0] ? sortedTactics[0].scaledDays : 1;
+
+    document.getElementById('tactic-grid').innerHTML = sortedTactics.map(function (t) {
+      var color = TACTIC_COLORS[t.name] || '#4f8ef7';
+      var topActs = t.diffs.sort(function (a, b) { return a.finishVar - b.finishVar; }).slice(0, 4);
+      return '<div class="tactic-card" onclick="ATT.filterByTactic(\'' + t.name + '\')"><div class="tactic-header"><div class="tactic-dot" style="background:' + color + '"></div><div class="tactic-name">' + t.name + '</div><div class="tactic-count">' + t.count + ' activities</div></div><div class="tactic-bar-wrap"><div class="tactic-bar" style="background:' + color + ';width:' + Math.min(100, (t.scaledDays / maxDays) * 100).toFixed(0) + '%"></div></div><span class="tactic-days">' + (t.scaledDays || 0) + '</span><span class="tactic-days-label"> estimated days</span><div class="tactic-activities">' +
+        topActs.map(function (d) {
+          return '<div class="tactic-act-item"><span>' + (d.task_name.length > 50 ? d.task_name.substring(0, 50) + '\u2026' : d.task_name) + '</span><span class="tactic-act-badge">' + (d.finishVar < 0 ? '\u25B2' : '\u25BC') + ' ' + Math.abs(d.finishVar).toFixed(0) + 'd</span></div>';
+        }).join('') + '</div></div>';
+    }).join('');
+
+    // Top 20 chart
+    var top20 = diffs.filter(function (d) { return d.finishVar !== 0; })
+      .sort(function (a, b) { return a.finishVar - b.finishVar; }).slice(0, 20);
+
+    plotDark('chart-top20', [{
+      type: 'bar', orientation: 'h',
+      x: top20.map(function (d) { return -d.finishVar; }),
+      y: top20.map(function (d) { return d.task_name.substring(0, 45) + ' [' + (d.blockNotation || d.blockNum) + ']'; }),
+      marker: { color: top20.map(function (d) { return d.finishVar < 0 ? '#22d3a8' : '#ef4444'; }) },
+      text: top20.map(function (d) { return (d.finishVar < 0 ? '\u25B2 ' : '\u25BC ') + Math.abs(d.finishVar).toFixed(1) + 'd'; }),
+      textposition: 'outside',
+      hovertemplate: '<b>%{y}</b><br>%{x:.1f} days<extra></extra>',
+    }], {
+      xaxis: { title: 'Days Improvement (earlier finish = positive)', color: '#8899bb', gridcolor: '#2a3050' },
+      yaxis: { autorange: 'reversed', color: '#e2e8f0', tickfont: { size: 10 } },
+      margin: { l: 380, r: 80, t: 10, b: 50 },
+      height: 420,
+    });
+
+    // Rules table
+    document.getElementById('rules-table').innerHTML = TACTIC_RULES.map(function (r) {
+      return '<tr><td><span class="badge badge-tactic" style="background:' + (TACTIC_COLORS[r.name] || '#4f8ef7') + '20;color:' + (TACTIC_COLORS[r.name] || '#4f8ef7') + '">' + r.name + '</span></td><td style="color:var(--text-muted);font-size:12px">' + r.signals + '</td><td style="color:var(--text-dim);font-style:italic;font-size:12px">' + r.example + '</td></tr>';
+    }).join('');
+  }
+
+  // ── Area & Commodity ──
+  function renderAreaCommodity(R) {
+    var aggregations = R.aggregations;
+
+    var blocks = Object.entries(aggregations.byBlock)
+      .filter(function (e) { return e[0] && e[0] !== 'General'; })
+      .map(function (e) { return { block: e[0], avgShift: e[1].totalFinishVar / e[1].count }; })
+      .sort(function (a, b) { return a.avgShift - b.avgShift; });
+
+    plotDark('chart-block', [{
+      type: 'bar',
+      x: blocks.map(function (b) { return 'Block ' + b.block; }),
+      y: blocks.map(function (b) { return -b.avgShift; }),
+      marker: { color: blocks.map(function (b) { return b.avgShift < 0 ? '#22d3a8' : '#ef4444'; }) },
+      hovertemplate: '<b>%{x}</b><br>Avg: %{y:.1f} days earlier<extra></extra>',
+    }], {
+      xaxis: { color: '#e2e8f0' },
+      yaxis: { title: 'Avg days earlier (positive = improvement)', color: '#8899bb', gridcolor: '#2a3050' },
+      margin: { l: 60, r: 20, t: 10, b: 40 },
+      height: 300,
+    });
+
+    // Tactic mix by trade
+    var commodities = Object.keys(aggregations.byCommodity)
+      .filter(function (c) { return c !== 'Other' && c !== 'Milestones'; })
+      .sort(function (a, b) { return aggregations.byCommodity[b].count - aggregations.byCommodity[a].count; })
+      .slice(0, 9);
+
+    var stackedTraces = Object.values(TACTICS).map(function (tname) {
+      var vals = commodities.map(function (c) {
+        var cdiffs = aggregations.byCommodity[c] ? aggregations.byCommodity[c].diffs : [];
+        return cdiffs.filter(function (d) { return d.tactics.some(function (t) { return t.tactic === tname; }); }).length;
+      });
+      if (vals.every(function (v) { return v === 0; })) return null;
+      return { type: 'bar', name: tname, x: commodities, y: vals, marker: { color: TACTIC_COLORS[tname] || '#4f8ef7' } };
+    }).filter(Boolean);
+
+    plotDark('chart-trade-mix', stackedTraces, {
+      barmode: 'stack',
+      xaxis: { color: '#e2e8f0', tickangle: -30, tickfont: { size: 10 } },
+      yaxis: { title: 'Activity count', color: '#8899bb', gridcolor: '#2a3050' },
+      margin: { l: 50, r: 10, t: 10, b: 100 },
+      height: 300,
+      legend: { font: { size: 10, color: '#8899bb' } },
+    });
+  }
+
+  // ── Crew Timeline ──
+  function renderCrewTimeline(R) {
+    var aggregations = R.aggregations, diffs = R.diffs;
+
+    var months = Object.keys(aggregations.byMonth).sort();
+    plotDark('chart-monthly-crew', [
+      { type: 'bar', name: 'Baseline', x: months, y: months.map(function (m) { return aggregations.byMonth[m].laborB; }), marker: { color: 'rgba(79,142,247,0.5)' }, hovertemplate: 'Baseline %{x}: %{y:.0f} crew-hrs<extra></extra>' },
+      { type: 'bar', name: 'Optimized', x: months, y: months.map(function (m) { return aggregations.byMonth[m].laborO; }), marker: { color: 'rgba(34,211,168,0.7)' }, hovertemplate: 'Optimized %{x}: %{y:.0f} crew-hrs<extra></extra>' },
+    ], {
+      barmode: 'group',
+      xaxis: { color: '#e2e8f0', tickangle: -30, type: 'category' },
+      yaxis: { title: 'Total crew-hours', color: '#8899bb', gridcolor: '#2a3050' },
+      margin: { l: 60, r: 20, t: 10, b: 80 }, height: 340,
+      legend: { font: { color: '#8899bb' } },
+    });
+
+    // Activity density
+    var commodities = Array.from(new Set(diffs.map(function (d) { return d.commodity; }))).filter(function (c) { return c !== 'Other'; });
+    var startsByMonth = {};
+    for (var i = 0; i < diffs.length; i++) {
+      var d = diffs[i];
+      if (!d.oStart) continue;
+      var m = d.oStart.getFullYear() + '-' + String(d.oStart.getMonth() + 1).padStart(2, '0');
+      if (!startsByMonth[m]) startsByMonth[m] = {};
+      startsByMonth[m][d.commodity] = (startsByMonth[m][d.commodity] || 0) + 1;
+    }
+    var densMonths = Object.keys(startsByMonth).sort();
+    var densColors = ['#4f8ef7', '#22d3a8', '#f59e0b', '#a78bfa', '#f472b6', '#60a5fa', '#34d399', '#fb7185'];
+    var densTraces = commodities.map(function (c, idx) {
+      return { type: 'bar', name: c, x: densMonths, y: densMonths.map(function (m) { return startsByMonth[m][c] || 0; }), marker: { color: densColors[idx % densColors.length] } };
+    });
+    plotDark('chart-density', densTraces, {
+      barmode: 'stack',
+      xaxis: { color: '#e2e8f0', tickangle: -30, type: 'category' },
+      yaxis: { title: 'Activities starting', color: '#8899bb', gridcolor: '#2a3050' },
+      margin: { l: 60, r: 20, t: 10, b: 80 }, height: 300,
+      legend: { font: { size: 10, color: '#8899bb' } },
+    });
+  }
+
+  // ── Critical Path ──
+  function renderCriticalPath(R) {
+    var diffs = R.diffs;
+
+    var gainedFloat   = diffs.filter(function (d) { return d.bCritical && !d.oCritical; }).sort(function (a, b) { return a.finishVar - b.finishVar; });
+    var stillCritical = diffs.filter(function (d) { return d.bCritical && d.oCritical; }).sort(function (a, b) { return a.finishVar - b.finishVar; });
+    var becameCritical = diffs.filter(function (d) { return !d.bCritical && d.oCritical; });
+
+    document.getElementById('cp-stats-grid').innerHTML =
+      '<div class="stat-card success"><div class="stat-label">Moved Off Critical Path</div><div class="stat-value">' + gainedFloat.length + '</div><div class="stat-detail">Now have schedule buffer</div></div>' +
+      '<div class="stat-card warn"><div class="stat-label">Moved Onto Critical Path</div><div class="stat-value">' + becameCritical.length + '</div><div class="stat-detail">Now driving project end</div></div>' +
+      '<div class="stat-card accent"><div class="stat-label">Near-Critical in Both</div><div class="stat-value">' + stillCritical.length + '</div><div class="stat-detail">Close to project completion in both</div></div>';
+
+    function renderCPList(el, items, limit) {
+      limit = limit || 15;
+      if (!items.length) { el.innerHTML = '<div style="padding:16px;color:var(--text-muted);font-size:13px">None identified.</div>'; return; }
+      el.innerHTML = items.slice(0, limit).map(function (d) {
+        var delta = -d.finishVar;
+        return '<div class="cp-row"><div class="cp-code">' + (d.task_code || '') + '</div><div class="cp-name" title="' + d.task_name + '">' + (d.task_name.length > 45 ? d.task_name.substring(0, 45) + '\u2026' : d.task_name) + '</div><div class="cp-block">' + (d.blockNotation || d.blockNum) + '</div><div class="cp-delta ' + (delta > 0 ? 'better' : delta < 0 ? 'worse' : '') + '">' + (delta > 0 ? '\u25B2 ' : delta < 0 ? '\u25BC ' : '') + Math.abs(delta).toFixed(1) + 'd</div><div class="cp-status ' + (delta > 0 ? 'gained' : delta < 0 ? 'lost' : 'same') + '">' + (delta > 0 ? 'Better' : delta < 0 ? 'Slipped' : 'Same') + '</div></div>';
+      }).join('');
+    }
+
+    renderCPList(document.getElementById('cp-gained-float'), gainedFloat.concat(becameCritical));
+    renderCPList(document.getElementById('cp-near-critical'), stillCritical);
+
+    // Float histogram
+    var floatChanges = diffs.map(function (d) { return d.floatVar; }).filter(function (v) { return v !== 0 && Math.abs(v) < 60; });
+    if (floatChanges.length > 0) {
+      plotDark('chart-float', [{
+        type: 'histogram', x: floatChanges, nbinsx: 30,
+        marker: { color: floatChanges.map(function (v) { return v > 0 ? '#22d3a8' : '#ef4444'; }) },
+        name: 'Float change', hovertemplate: '%{y} activities with %{x:.1f}d float change<extra></extra>',
+      }], {
+        xaxis: { title: 'Float change in days (positive = more buffer)', color: '#8899bb', gridcolor: '#2a3050' },
+        yaxis: { title: 'Activity count', color: '#8899bb', gridcolor: '#2a3050' },
+        margin: { l: 60, r: 20, t: 10, b: 50 }, height: 280,
+      });
+    }
+
+    // ── Gantt Chart: Critical Path Comparison ──
+    var cpDiffs = diffs.filter(function (d) { return d.bCritical || d.oCritical; })
+      .filter(function (d) { return d.bStart && d.bEnd && d.oStart && d.oEnd; })
+      .sort(function (a, b) { return a.oStart - b.oStart; })
+      .slice(0, 25);
+
+    if (cpDiffs.length > 0) {
+      var ganttTraces = [];
+      var yLabels = cpDiffs.map(function (d, i) { return d.task_name.substring(0, 40); });
+
+      for (var gi = 0; gi < cpDiffs.length; gi++) {
+        var gd = cpDiffs[gi];
+        ganttTraces.push({
+          type: 'scatter', mode: 'lines',
+          x: [gd.bStart, gd.bEnd], y: [gi - 0.15, gi - 0.15],
+          line: { color: 'rgba(79,142,247,0.4)', width: 14 },
+          name: 'Baseline', legendgroup: 'baseline', showlegend: gi === 0,
+          hovertemplate: '<b>Baseline</b><br>' + gd.task_name.substring(0, 40) + '<br>' + fmtDate(gd.bStart) + ' \u2192 ' + fmtDate(gd.bEnd) + '<extra></extra>',
+        });
+        ganttTraces.push({
+          type: 'scatter', mode: 'lines',
+          x: [gd.oStart, gd.oEnd], y: [gi + 0.15, gi + 0.15],
+          line: { color: 'rgba(34,211,168,0.8)', width: 14 },
+          name: 'Optimized', legendgroup: 'optimized', showlegend: gi === 0,
+          hovertemplate: '<b>Optimized</b><br>' + gd.task_name.substring(0, 40) + '<br>' + fmtDate(gd.oStart) + ' \u2192 ' + fmtDate(gd.oEnd) + '<extra></extra>',
+        });
+      }
+
+      plotDark('chart-gantt', ganttTraces, {
+        xaxis: { type: 'date', color: '#8899bb', gridcolor: '#2a3050' },
+        yaxis: {
+          tickvals: cpDiffs.map(function (d, i) { return i; }),
+          ticktext: yLabels,
+          autorange: 'reversed', color: '#e2e8f0', tickfont: { size: 10 },
+        },
+        margin: { l: 320, r: 30, t: 10, b: 50 },
+        height: Math.max(300, cpDiffs.length * 32 + 60),
+        legend: { font: { color: '#8899bb' }, orientation: 'h', y: 1.02 },
+        hovermode: 'closest',
+      });
+    }
+  }
+
+  // ── Requirements ──
+  function renderRequirements(R) {
+    var reqs = R.requirements;
+    var catColors = {
+      'Mobilization': '#22d3a8', 'Permitting': '#fb7185',
+      'Field Discipline': '#f59e0b', 'Resources': '#a78bfa',
+      'Area Management': '#60a5fa', 'Scheduling': '#4f8ef7',
+      'Project Controls': '#34d399',
+    };
+    var byCategory = {};
+    for (var i = 0; i < reqs.length; i++) {
+      if (!byCategory[reqs[i].category]) byCategory[reqs[i].category] = [];
+      byCategory[reqs[i].category].push(reqs[i]);
+    }
+    document.getElementById('requirements-content').innerHTML = Object.entries(byCategory).map(function (e) {
+      var cat = e[0], items = e[1];
+      return '<div class="requirement-section"><div class="req-section-title" style="color:' + (catColors[cat] || '#8899bb') + '">' + cat + '</div>' +
+        items.map(function (r) {
+          return '<div class="requirement-item"><div class="req-icon">' + r.icon + '</div><div style="flex:1"><div class="req-title">' + r.title + '</div><div class="req-detail">' + r.detail + '</div></div>' + (r.date ? '<div class="req-date">' + r.date + '</div>' : '') + '</div>';
+        }).join('') + '</div>';
+    }).join('');
+  }
+
+  // ── Activity Table ──
+  function populateFilters(R) {
+    var diffs = R.diffs;
+    var comms = Array.from(new Set(diffs.map(function (d) { return d.commodity; }))).sort();
+    var blocks = Array.from(new Set(diffs.map(function (d) { return d.blockNum; }).filter(Boolean))).sort(function (a, b) { return a - b; });
+    var tactics = Array.from(new Set(diffs.flatMap(function (d) { return d.tactics.map(function (t) { return t.tactic; }); }))).filter(function (t) { return t !== 'No Change'; }).sort();
+
+    document.getElementById('filter-commodity').innerHTML = '<option value="">All Trades</option>' + comms.map(function (c) { return '<option value="' + c + '">' + c + '</option>'; }).join('');
+    document.getElementById('filter-block').innerHTML = '<option value="">All Blocks</option>' + blocks.map(function (b) { return '<option value="' + b + '">Block ' + b + '</option>'; }).join('');
+    document.getElementById('filter-tactic').innerHTML = '<option value="">All Tactics</option>' + tactics.map(function (t) { return '<option value="' + t + '">' + t + '</option>'; }).join('');
+  }
+
+  ATT.filterByTactic = function (tacticName) {
+    ATT.switchTab('areas');
+    setTimeout(function () {
+      document.getElementById('filter-tactic').value = tacticName;
+      ATT.renderActivityTable();
+    }, 80);
+  };
+
+  ATT.sortTable = function (col) {
+    tableSort = { col: col, dir: tableSort.col === col ? -tableSort.dir : 1 };
+    ATT.renderActivityTable();
+  };
+
+  ATT.renderActivityTable = function () {
+    if (!window.APP || !window.APP.results) return;
+    var diffs = window.APP.results.diffs;
+    var fComm = document.getElementById('filter-commodity').value;
+    var fBlock = document.getElementById('filter-block').value;
+    var fTactic = document.getElementById('filter-tactic').value;
+    var fImpact = document.getElementById('filter-impact').value;
+
+    var filtered = diffs.filter(function (d) {
+      if (fComm && d.commodity !== fComm) return false;
+      if (fBlock && d.blockNum !== fBlock) return false;
+      if (fTactic && !d.tactics.some(function (t) { return t.tactic === fTactic; })) return false;
+      if (fImpact === 'improved' && d.finishVar >= -0.5) return false;
+      if (fImpact === 'worsened' && d.finishVar <= 0.5) return false;
+      if (fImpact === 'major' && Math.abs(d.finishVar) <= 7) return false;
+      return true;
+    });
+
+    filtered.sort(function (a, b) {
+      var va = a[tableSort.col], vb = b[tableSort.col];
+      if (typeof va === 'string') return tableSort.dir * va.localeCompare(vb);
+      return tableSort.dir * ((va || 0) - (vb || 0));
+    });
+
+    var shown = filtered.slice(0, 200);
+    document.getElementById('activity-table-body').innerHTML = shown.map(function (d) {
+      var ptac = d.tactics[0] || { tactic: 'No Change' };
+      var color = TACTIC_COLORS[ptac.tactic] || '#4f8ef7';
+      return '<tr><td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + d.task_name + '">' + d.task_name + '</td><td><span style="font-size:11px">' + d.commodity + '</span></td><td>' + (d.blockNotation || d.blockNum || '\u2014') + '</td><td>' + (d.startVar ? '<span class="badge ' + (d.startVar < -0.5 ? 'badge-neg' : d.startVar > 0.5 ? 'badge-pos' : '') + '">' + fmtDays(d.startVar, true) + '</span>' : '\u2014') + '</td><td>' + (d.finishVar ? '<span class="badge ' + (d.finishVar < -0.5 ? 'badge-neg' : d.finishVar > 0.5 ? 'badge-pos' : '') + '">' + fmtDays(d.finishVar, true) + '</span>' : '\u2014') + '</td><td>' + (d.durVar ? fmtDays(d.durVar, true) : '\u2014') + '</td><td>' + (d.floatVar ? (d.floatVar > 0 ? '+' : '') + d.floatVar.toFixed(1) + 'd' : '\u2014') + '</td><td>' + (d.laborVar !== 0 ? (d.laborVar > 0 ? '+' : '') + d.laborVar.toFixed(1) : '\u2014') + '</td><td><span class="badge badge-tactic" style="background:' + color + '20;color:' + color + '">' + ptac.tactic + '</span></td></tr>';
+    }).join('');
+
+    document.getElementById('activity-table-footer').textContent =
+      'Showing ' + shown.length + ' of ' + filtered.length + ' activities' +
+      (filtered.length < diffs.length ? ' (' + diffs.length + ' total)' : '');
+  };
+
+})(window.ATT = window.ATT || {});
