@@ -118,18 +118,39 @@
       if (a.weakLogic && a.weakLogicNote) {
         weakHtml = '<div class="epc-weak-logic">\u26A0 ' + a.weakLogicNote + '</div>';
       }
+
+      var bulletsHtml = '';
+      if (a.bullets && a.bullets.length) {
+        bulletsHtml = '<ul class="epc-bullets">' +
+          a.bullets.map(function (b) { return '<li>' + b + '</li>'; }).join('') +
+        '</ul>';
+      }
+
+      var crewHtml = '';
+      if (a.crewShifts && a.crewShifts.length) {
+        crewHtml = '<div class="epc-crew-table"><table>' +
+          '<thead><tr><th>Crew</th><th>Baseline Peak</th><th>Optimized Peak</th><th>Shift</th></tr></thead><tbody>' +
+          a.crewShifts.map(function (c) {
+            var dir = c.shiftDays > 0 ? 'earlier' : 'later';
+            var cls = c.shiftDays > 0 ? 'epc-shift-pos' : 'epc-shift-neg';
+            return '<tr><td>' + c.name + '</td>' +
+              '<td>' + c.bPeak + ' on ' + fmtDate(c.bDate) + '</td>' +
+              '<td>' + c.oPeak + ' on ' + fmtDate(c.oDate) + '</td>' +
+              '<td class="' + cls + '">' + Math.abs(c.shiftDays) + 'd ' + dir + '</td></tr>';
+          }).join('') +
+          '</tbody></table></div>';
+      }
+
       return '<div class="epc-action-card priority-' + pCls + '">' +
         '<div class="epc-card-header">' +
           '<div class="epc-num">' + (i + 1) + '</div>' +
           '<div class="epc-title">' + a.title + '</div>' +
           '<span class="priority-pill ' + pCls + '">' + a.priority + '</span>' +
         '</div>' +
-        '<div class="epc-fields">' +
-          '<div class="epc-field"><div class="epc-field-label">EPC Field Action</div><div class="epc-field-value epc-field-action">' + a.fieldAction + '</div></div>' +
-          '<div class="epc-field"><div class="epc-field-label">Baseline State</div><div class="epc-field-value">' + a.baselineState + '</div></div>' +
-          '<div class="epc-field"><div class="epc-field-label">Optimized State</div><div class="epc-field-value">' + a.optimizedState + '</div></div>' +
-          '<div class="epc-field"><div class="epc-field-label">What Changed</div><div class="epc-field-value">' + a.whatChanged + '</div></div>' +
-          '<div class="epc-field"><div class="epc-field-label">Root Cause</div><div class="epc-field-value">' + a.rootCause + '</div></div>' +
+        '<div class="epc-body">' +
+          bulletsHtml +
+          crewHtml +
+          '<div class="epc-field-action-wrap"><div class="epc-field-label">EPC Field Action</div><div class="epc-field-action">' + a.fieldAction + '</div></div>' +
         '</div>' +
         weakHtml +
       '</div>';

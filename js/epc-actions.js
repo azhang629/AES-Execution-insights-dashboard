@@ -21,17 +21,6 @@
     return true;
   }
 
-  function dominantTactic(diffs) {
-    var counts = {};
-    diffs.forEach(function (d) {
-      (d.tactics || []).forEach(function (t) {
-        if (t.tactic !== 'No Change') counts[t.tactic] = (counts[t.tactic] || 0) + 1;
-      });
-    });
-    var top = Object.entries(counts).sort(function (a, b) { return b[1] - a[1]; })[0];
-    return top ? top[0] : '';
-  }
-
   function sweepCrewPeak(activities, startKey, endKey, crewKey) {
     var events = [];
     activities.forEach(function (d) {
@@ -55,53 +44,40 @@
     var preMC = diffs.filter(function (d) { return isPreMC(d, mcCutoff) && d.oStart && d.bStart; });
     var usedTasks = {};
 
-    // ── 1. Crew Peak Timing Shifts ──
+    // ── 1. Consolidated Crew Peak Action ──
     var hasAliceCrewData = !!(R.bCrewData && R.oCrewData);
+    var crewShifts = [];
+    var siteShift = null;
 
     if (hasAliceCrewData) {
       var bCD = R.bCrewData, oCD = R.oCrewData;
       var bOverall = { peak: bCD.peakCount, date: bCD.peakDate };
       var oOverall = { peak: oCD.peakCount, date: oCD.peakDate };
 
-      if (bOverall.date && oOverall.date && ATT.differentMonth(bOverall.date, oOverall.date)) {
-        var shiftDays = Math.round(Math.abs(bOverall.date - oOverall.date) / 86400000);
-        actions.push({
-          title: 'Site crew peak moves from ' + fmtDate(bOverall.date) + ' to ' + fmtDate(oOverall.date),
-          baselineState: 'Peak: ' + bOverall.peak + ' workers on ' + fmtDate(bOverall.date),
-          optimizedState: 'Peak: ' + oOverall.peak + ' workers on ' + fmtDate(oOverall.date),
-          whatChanged: 'Peak crew date shifts ' + shiftDays + 'd. Headcount: ' + bOverall.peak + ' \u2192 ' + oOverall.peak + ' workers.',
-          rootCause: 'Activity resequencing changes when the most trades overlap on-site, moving the peak manning date',
-          fieldAction: 'Plan site infrastructure (parking, laydown, porta-johns, break areas) for ' + oOverall.peak + ' workers by ' + fmtDate(oOverall.date) + '. Confirm all subs can staff simultaneously.',
-          priority: 'High',
-          impact: shiftDays,
-          weakLogic: false,
-          weakLogicNote: '',
-        });
+      if (bOverall.date && oOverall.date) {
+        var siteDays = Math.round((bOverall.date - oOverall.date) / 86400000);
+        siteShift = { bPeak: bOverall.peak, oPeak: oOverall.peak, bDate: bOverall.date, oDate: oOverall.date, days: siteDays };
       }
 
       var allCrewNames = {};
       bCD.crewNames.forEach(function (n) { allCrewNames[n] = true; });
       oCD.crewNames.forEach(function (n) { allCrewNames[n] = true; });
 
-      Object.keys(allCrewNames).forEach(function (crew) {
+      Object.keys(allCrewNames).sort().forEach(function (crew) {
         var bP = bCD.crewPeaks[crew] || { peak: 0, date: null };
         var oP = oCD.crewPeaks[crew] || { peak: 0, date: null };
-        if (!bP.date || !oP.date || !ATT.differentMonth(bP.date, oP.date)) return;
-        if (bP.peak < 5 && oP.peak < 5) return;
-        var shiftD = Math.round(Math.abs(bP.date - oP.date) / 86400000);
-        if (shiftD < 14) return;
+        if (!bP.date || !oP.date) return;
+        if (bP.peak < 3 && oP.peak < 3) return;
+        var shiftD = Math.round((bP.date - oP.date) / 86400000);
+        if (Math.abs(shiftD) < 7) return;
 
-        actions.push({
-          title: 'Move \u201C' + crew + '\u201D peak from ' + fmtDate(bP.date) + ' to ' + fmtDate(oP.date),
-          baselineState: crew + ' peak: ' + bP.peak + ' workers on ' + fmtDate(bP.date),
-          optimizedState: crew + ' peak: ' + oP.peak + ' workers on ' + fmtDate(oP.date),
-          whatChanged: crew + ' peak manning date shifts ' + shiftD + 'd. Headcount: ' + bP.peak + ' \u2192 ' + oP.peak + ' workers.',
-          rootCause: 'Activity resequencing changes when this crew is most utilized, moving its peak date',
-          fieldAction: 'Confirm ' + crew + ' can staff ' + oP.peak + ' workers by ' + fmtDate(oP.date) + '. Adjust mobilization date and material deliveries.',
-          priority: 'High',
-          impact: shiftD,
-          weakLogic: false,
-          weakLogicNote: '',
+        crewShifts.push({
+          name: shortName(crew),
+          shiftDays: shiftD,
+          bDate: bP.date,
+          oDate: oP.date,
+          bPeak: bP.peak,
+          oPeak: oP.peak,
         });
       });
     } else {
@@ -112,50 +88,62 @@
       var bOverall = sweepCrewPeak(crewDiffs, 'bStart', 'bEnd', 'bCrewSize');
       var oOverall = sweepCrewPeak(crewDiffs, 'oStart', 'oEnd', 'oCrewSize');
 
-      if (bOverall.date && oOverall.date && ATT.differentMonth(bOverall.date, oOverall.date)) {
-        var shiftDays = Math.round(Math.abs(bOverall.date - oOverall.date) / 86400000);
-        actions.push({
-          title: 'Site crew peak moves from ' + fmtDate(bOverall.date) + ' to ' + fmtDate(oOverall.date),
-          baselineState: 'Peak: ' + bOverall.peak + ' workers on ' + fmtDate(bOverall.date),
-          optimizedState: 'Peak: ' + oOverall.peak + ' workers on ' + fmtDate(oOverall.date),
-          whatChanged: 'Peak crew date shifts ' + shiftDays + 'd. Headcount: ' + bOverall.peak + ' \u2192 ' + oOverall.peak + ' workers.',
-          rootCause: 'Activity resequencing changes when the most trades overlap on-site, moving the peak manning date',
-          fieldAction: 'Plan site infrastructure (parking, laydown, porta-johns, break areas) for ' + oOverall.peak + ' workers by ' + fmtDate(oOverall.date) + '. Confirm all subs can staff simultaneously.',
-          priority: 'High',
-          impact: shiftDays,
-          weakLogic: false,
-          weakLogicNote: '',
-        });
+      if (bOverall.date && oOverall.date) {
+        var siteDays = Math.round((bOverall.date - oOverall.date) / 86400000);
+        siteShift = { bPeak: bOverall.peak, oPeak: oOverall.peak, bDate: bOverall.date, oDate: oOverall.date, days: siteDays };
       }
 
       var tradeNames = {};
       crewDiffs.forEach(function (d) { tradeNames[d.commodity] = true; });
 
-      Object.keys(tradeNames).forEach(function (trade) {
+      Object.keys(tradeNames).sort().forEach(function (trade) {
         var tradeDiffs = crewDiffs.filter(function (d) { return d.commodity === trade; });
         var bPeak = sweepCrewPeak(tradeDiffs, 'bStart', 'bEnd', 'bCrewSize');
         var oPeak = sweepCrewPeak(tradeDiffs, 'oStart', 'oEnd', 'oCrewSize');
-        if (!bPeak.date || !oPeak.date || !ATT.differentMonth(bPeak.date, oPeak.date)) return;
+        if (!bPeak.date || !oPeak.date) return;
         if (bPeak.peak < 5 && oPeak.peak < 5) return;
-        var shiftD = Math.round(Math.abs(bPeak.date - oPeak.date) / 86400000);
-        if (shiftD < 14) return;
+        var shiftD = Math.round((bPeak.date - oPeak.date) / 86400000);
+        if (Math.abs(shiftD) < 14) return;
 
-        actions.push({
-          title: 'Move ' + trade + ' crew peak from ' + fmtDate(bPeak.date) + ' to ' + fmtDate(oPeak.date),
-          baselineState: trade + ' peak: ' + bPeak.peak + ' workers on ' + fmtDate(bPeak.date),
-          optimizedState: trade + ' peak: ' + oPeak.peak + ' workers on ' + fmtDate(oPeak.date),
-          whatChanged: trade + ' peak manning date shifts ' + shiftD + 'd. Headcount: ' + bPeak.peak + ' \u2192 ' + oPeak.peak + ' workers.',
-          rootCause: 'Activity resequencing changes when the most ' + trade + ' activities overlap, moving the trade peak',
-          fieldAction: 'Confirm ' + trade + ' sub can staff ' + oPeak.peak + ' workers by ' + fmtDate(oPeak.date) + '. Adjust mobilization date and material deliveries.',
-          priority: 'High',
-          impact: shiftD,
-          weakLogic: false,
-          weakLogicNote: '',
+        crewShifts.push({
+          name: trade,
+          shiftDays: shiftD,
+          bDate: bPeak.date,
+          oDate: oPeak.date,
+          bPeak: bPeak.peak,
+          oPeak: oPeak.peak,
         });
       });
     }
 
-    // ── 2. Parallel Execution (Logic FS → SS) ──
+    var pulledForward = crewShifts.filter(function (c) { return c.shiftDays > 0; });
+    var pushedBack = crewShifts.filter(function (c) { return c.shiftDays < 0; });
+
+    if (siteShift && (pulledForward.length > 0 || pushedBack.length > 0)) {
+      var earliestODate = null;
+      crewShifts.forEach(function (c) {
+        if (!earliestODate || c.oDate < earliestODate) earliestODate = c.oDate;
+      });
+      var maxShift = 0;
+      crewShifts.forEach(function (c) { if (Math.abs(c.shiftDays) > maxShift) maxShift = Math.abs(c.shiftDays); });
+
+      actions.push({
+        title: 'Crew ramp-up accelerated \u2014 peaks pulled forward up to ' + maxShift + ' days',
+        bullets: [
+          'Site peak moves from ' + fmtDate(siteShift.bDate) + ' to ' + fmtDate(siteShift.oDate) + ' (' + siteShift.oPeak + ' workers vs ' + siteShift.bPeak + ' baseline)',
+          'Activity resequencing compresses the ramp-up curve \u2014 trades reach peak manning earlier, shortening the critical path',
+          pulledForward.length + ' crew(s) peak earlier, ' + pushedBack.length + ' shift later',
+        ],
+        crewShifts: crewShifts.sort(function (a, b) { return b.shiftDays - a.shiftDays; }),
+        fieldAction: 'Confirm all subs can mobilize to peak manning by their new dates. Plan site infrastructure (laydown, parking, break areas) for ' + siteShift.oPeak + ' workers by ' + fmtDate(earliestODate) + '.',
+        priority: 'High',
+        impact: maxShift,
+        weakLogic: false,
+        weakLogicNote: '',
+      });
+    }
+
+    // ── 2. Parallel Execution (Logic FS -> SS) ──
     var overlapDiffs = preMC.filter(function (d) {
       return d.logic && d.logic.newSS > 0 && Math.abs(d.finishVar) > 1 && !usedTasks[d.task_code];
     }).sort(function (a, b) { return a.finishVar - b.finishVar; });
@@ -174,10 +162,11 @@
 
       actions.push({
         title: 'Run \u201C' + shortName(d.task_name) + '\u201D parallel with ' + predLabel + (loc ? ' in ' + loc : ''),
-        baselineState: 'Sequential (FS). ' + d.logic.bPredCount + ' predecessors. Start: ' + fmtDate(d.bStart) + ', Finish: ' + fmtDate(d.bEnd),
-        optimizedState: 'Parallel (SS). ' + d.logic.oPredCount + ' predecessors (' + d.logic.newSS + ' new SS). Start: ' + fmtDate(d.oStart) + ', Finish: ' + fmtDate(d.oEnd),
-        whatChanged: 'Logic changed from finish-to-start to start-to-start on ' + d.logic.newSS + ' relationship(s). Activity now overlaps its predecessor.',
-        rootCause: 'Parallel work fronts \u2014 two trades in the same area concurrently instead of sequentially',
+        bullets: [
+          'Logic changed from finish-to-start to start-to-start on ' + d.logic.newSS + ' relationship(s) \u2014 activity now overlaps its predecessor',
+          'Parallel work fronts: two trades in the same area concurrently instead of sequentially',
+          'Finish pulled forward ' + Math.abs(d.finishVar).toFixed(0) + 'd (' + fmtDate(d.bEnd) + ' \u2192 ' + fmtDate(d.oEnd) + ')',
+        ],
         fieldAction: 'Coordinate zone boundaries between ' + shortName(d.task_name) + ' and ' + predLabel + ' crews. Foremen agree on work zones and sequence within the shared area before either trade starts.',
         priority: d.oCritical ? 'Critical' : 'High',
         impact: Math.abs(d.finishVar),
@@ -205,10 +194,10 @@
         var loc = blockTag(d);
         actions.push({
           title: 'Add ' + d.laborVar.toFixed(0) + ' workers to \u201C' + shortName(d.task_name) + '\u201D' + (loc ? ' in ' + loc : '') + ' \u2014 compress ' + d.bDurDays.toFixed(0) + 'd to ' + d.oDurDays.toFixed(0) + 'd',
-          baselineState: d.bCrewSize.toFixed(0) + ' crew, ' + d.bDurDays.toFixed(0) + 'd duration. Start: ' + fmtDate(d.bStart) + ', Finish: ' + fmtDate(d.bEnd),
-          optimizedState: d.oCrewSize.toFixed(0) + ' crew, ' + d.oDurDays.toFixed(0) + 'd duration. Start: ' + fmtDate(d.oStart) + ', Finish: ' + fmtDate(d.oEnd),
-          whatChanged: 'Crew increased from ' + d.bCrewSize.toFixed(0) + ' to ' + d.oCrewSize.toFixed(0) + ' (+' + d.laborVar.toFixed(0) + '). Duration shortened by ' + Math.abs(d.durVar).toFixed(0) + 'd.',
-          rootCause: 'Higher crew loading \u2014 same work scope completed faster with more workers on the activity',
+          bullets: [
+            'Crew increased from ' + d.bCrewSize.toFixed(0) + ' to ' + d.oCrewSize.toFixed(0) + ' (+' + d.laborVar.toFixed(0) + ' workers). Duration shortened by ' + Math.abs(d.durVar).toFixed(0) + 'd',
+            'Higher crew loading \u2014 same work scope completed faster with more workers on the activity',
+          ],
           fieldAction: 'Get sub to commit ' + d.oCrewSize.toFixed(0) + ' crew in writing (up from ' + d.bCrewSize.toFixed(0) + '). Ensure tools and equipment for the larger gang are staged at the workfront before start.',
           priority: d.oCritical ? 'Critical' : 'High',
           impact: Math.abs(d.durVar),
@@ -244,18 +233,17 @@
           return d.tactics.some(function (t) { return t.tactic === TACTICS.CONSTRAINT; });
         }).length;
         var isConstraint = constraintCount > info.diffs.length * 0.5;
-        var cause = isConstraint
-          ? 'Area constraint released earlier \u2014 ' + loc + ' available sooner than baseline'
-          : 'Block execution resequenced \u2014 ' + loc + ' moves ahead in the construction sequence';
 
         info.diffs.forEach(function (d) { usedTasks[d.task_code] = true; });
 
         actions.push({
           title: (isConstraint ? 'Release ' : 'Resequence ') + loc + ' \u2014 ' + info.diffs.length + ' activities start ~' + Math.abs(avgShift) + 'd earlier',
-          baselineState: info.diffs.length + ' activities in ' + loc + '. First start: ' + fmtDate(earliest.bStart),
-          optimizedState: info.diffs.length + ' activities in ' + loc + '. First start: ' + fmtDate(earliest.oStart),
-          whatChanged: info.diffs.length + ' activities in ' + loc + ' shift ~' + Math.abs(avgShift) + 'd earlier. Same scope, same crew, same durations.',
-          rootCause: cause,
+          bullets: [
+            info.diffs.length + ' activities in ' + loc + ' shift ~' + Math.abs(avgShift) + 'd earlier. Same scope, same crew, same durations',
+            isConstraint
+              ? 'Area constraint released earlier \u2014 ' + loc + ' available sooner than baseline'
+              : 'Block execution resequenced \u2014 ' + loc + ' moves ahead in the construction sequence',
+          ],
           fieldAction: isConstraint
             ? 'Secure area access for ' + loc + ' by ' + fmtDate(earliest.oStart) + '. Permit/release must be in hand before crew mobilizes.'
             : 'Execute ' + loc + ' starting ' + fmtDate(earliest.oStart) + '. Coordinate with adjacent blocks to avoid resource conflicts.',
@@ -277,15 +265,14 @@
       var bGap = d.logic.bDrivingLagDays !== null ? Math.round(d.logic.bDrivingLagDays) : null;
       var oGap = d.logic.oDrivingLagDays !== null ? Math.round(d.logic.oDrivingLagDays) : null;
       var predName = d.logic.drivingPredName ? nameWithBlock(d.logic.drivingPredName) : 'predecessor';
-      var taskName = nameWithBlock(d.task_name);
       var gapDelta = (bGap !== null && oGap !== null) ? Math.abs(bGap - oGap) : Math.abs(Math.round(d.logic.lagDelta / 24));
 
       actions.push({
         title: 'Close ' + gapDelta + 'd gap between \u201C' + shortName(d.logic.drivingPredName || '') + '\u201D and \u201C' + shortName(d.task_name) + '\u201D' + (loc ? ' in ' + loc : ''),
-        baselineState: predName + ' \u2192 ' + taskName + '. Gap: ' + (bGap !== null ? bGap + 'd' : 'unknown') + '. Successor start: ' + fmtDate(d.bStart),
-        optimizedState: predName + ' \u2192 ' + taskName + '. Gap: ' + (oGap !== null ? oGap + 'd' : 'unknown') + '. Successor start: ' + fmtDate(d.oStart),
-        whatChanged: 'Handoff gap reduced from ' + (bGap !== null ? bGap + 'd' : '?') + ' to ' + (oGap !== null ? oGap + 'd' : '?') + '. Same predecessor drives in both schedules.',
-        rootCause: 'Tighter trade handoff \u2014 predecessor completes and successor crew starts with less idle time between',
+        bullets: [
+          'Handoff gap reduced from ' + (bGap !== null ? bGap + 'd' : '?') + ' to ' + (oGap !== null ? oGap + 'd' : '?') + '. Same predecessor drives in both schedules',
+          'Tighter trade handoff \u2014 predecessor completes and successor crew starts with less idle time between',
+        ],
         fieldAction: 'Predecessor crew must finish clean with no punch items blocking the next trade. Successor crew staged and ready to start within ' + (oGap !== null ? oGap + 'd' : 'reduced gap') + ' of predecessor completion.',
         priority: d.oCritical ? 'Critical' : 'High',
         impact: gapDelta,
@@ -306,10 +293,10 @@
       var loc = blockTag(d);
       actions.push({
         title: '\u201C' + shortName(d.task_name) + '\u201D' + (loc ? ' in ' + loc : '') + ' \u2014 execution path restructured',
-        baselineState: d.logic.bPredCount + ' predecessors. Start: ' + fmtDate(d.bStart) + ', Finish: ' + fmtDate(d.bEnd),
-        optimizedState: d.logic.oPredCount + ' predecessors. Start: ' + fmtDate(d.oStart) + ', Finish: ' + fmtDate(d.oEnd),
-        whatChanged: 'Predecessor count: ' + d.logic.bPredCount + ' \u2192 ' + d.logic.oPredCount + '.' + (d.logic.added > 0 ? ' ' + d.logic.added + ' added.' : '') + (d.logic.removed > 0 ? ' ' + d.logic.removed + ' removed.' : '') + ' Finish shifted ' + Math.abs(d.finishVar).toFixed(0) + 'd.',
-        rootCause: 'Execution path restructured \u2014 the optimized schedule uses a different predecessor/successor chain than baseline',
+        bullets: [
+          'Predecessor count: ' + d.logic.bPredCount + ' \u2192 ' + d.logic.oPredCount + '.' + (d.logic.added > 0 ? ' ' + d.logic.added + ' added.' : '') + (d.logic.removed > 0 ? ' ' + d.logic.removed + ' removed.' : '') + ' Finish shifted ' + Math.abs(d.finishVar).toFixed(0) + 'd',
+          'Execution path restructured \u2014 the optimized schedule uses a different predecessor/successor chain than baseline',
+        ],
         fieldAction: 'Review the optimized predecessor logic for this activity. Verify the new construction sequence is executable in the field before committing crew.',
         priority: 'Medium',
         impact: Math.abs(d.finishVar),
@@ -318,7 +305,6 @@
       });
     });
 
-    // Sort: Critical first, then by impact
     var prioOrder = { Critical: 0, High: 1, Medium: 2 };
     actions.sort(function (a, b) {
       var pa = prioOrder[a.priority] || 2, pb = prioOrder[b.priority] || 2;
