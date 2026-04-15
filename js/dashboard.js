@@ -305,9 +305,6 @@
     // ── CPM Validation Summary ──
     renderCPMValidation(baseline, optimized, diffs);
 
-    // ── Driving Path Chain ──
-    renderDrivingPathChain(baseline, optimized);
-
     // ── Discrepancies Table ──
     renderCPMDiscrepancies(baseline, optimized);
 
@@ -413,49 +410,6 @@
       '<div class="stat-card accent"><div class="stat-label">Baseline CPM-Critical</div><div class="stat-value">' + bCritCount + '</div><div class="stat-detail">Driving path: ' + bDP + ' activities</div></div>' +
       '<div class="stat-card accent"><div class="stat-label">Optimized CPM-Critical</div><div class="stat-value">' + oCritCount + '</div><div class="stat-detail">Driving path: ' + oDP + ' activities</div></div>' +
       '<div class="stat-card ' + discClass + '"><div class="stat-label">Validation Agreement</div><div class="stat-value">' + (bv.agreementPct || 100) + '%</div><div class="stat-detail">' + totalDisc + ' discrepancies found</div></div>';
-  }
-
-  // ── Driving Path Chain ──
-  function renderDrivingPathChain(baseline, optimized) {
-    var wrap = document.getElementById('driving-path-wrap');
-    var el = document.getElementById('driving-path-chain');
-    if (!wrap || !el) return;
-
-    var bPath = baseline.drivingPath || [];
-    var oPath = optimized.drivingPath || [];
-    var showPath = oPath.length >= bPath.length ? oPath : bPath;
-    var label = oPath.length >= bPath.length ? 'Optimized' : 'Baseline';
-
-    if (!showPath.length) { wrap.style.display = 'none'; return; }
-    wrap.style.display = '';
-
-    var maxShow = 20;
-    var displayed = showPath.length > maxShow
-      ? showPath.slice(0, 5).concat([null]).concat(showPath.slice(-10))
-      : showPath;
-
-    var html = '<div style="font-size:11px;color:var(--text-muted);margin-bottom:8px">' + label + ' driving path (' + showPath.length + ' activities)</div>';
-    html += '<div class="dp-chain">';
-
-    for (var i = 0; i < displayed.length; i++) {
-      var t = displayed[i];
-      if (!t) {
-        html += '<div class="dp-ellipsis">\u2026</div>';
-        continue;
-      }
-      var floatTxt = t.cpmFloatDays != null ? t.cpmFloatDays.toFixed(1) + 'd' : '\u2014';
-      var shortName = t.task_name.length > 35 ? t.task_name.substring(0, 35) + '\u2026' : t.task_name;
-      html += '<div class="dp-node" title="' + t.task_name + '\nFloat: ' + floatTxt + '">';
-      html += '<div class="dp-node-name">' + shortName + '</div>';
-      html += '<div class="dp-node-meta">' + fmtDate(t.early_start) + ' \u2192 ' + fmtDate(t.early_end) + '</div>';
-      html += '<div class="dp-node-float">Float: ' + floatTxt + '</div>';
-      html += '</div>';
-      if (i < displayed.length - 1 && displayed[i + 1]) {
-        html += '<div class="dp-arrow">\u2192</div>';
-      }
-    }
-    html += '</div>';
-    el.innerHTML = html;
   }
 
   // ── Discrepancies Table ──
