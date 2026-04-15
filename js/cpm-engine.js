@@ -185,7 +185,9 @@
       current = driver;
     }
 
-    return path;
+    return path.filter(function (t) {
+      return !/mobiliz/i.test(t.task_name);
+    });
   }
 
 })(window.ATT = window.ATT || {});
