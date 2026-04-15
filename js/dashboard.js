@@ -300,15 +300,32 @@
   // ── Critical Path ──
   function renderCriticalPath(R) {
     var diffs = R.diffs;
+    var baseline = R.baseline, optimized = R.optimized;
 
-    var gainedFloat   = diffs.filter(function (d) { return d.bCritical && !d.oCritical; }).sort(function (a, b) { return a.finishVar - b.finishVar; });
-    var stillCritical = diffs.filter(function (d) { return d.bCritical && d.oCritical; }).sort(function (a, b) { return a.finishVar - b.finishVar; });
-    var becameCritical = diffs.filter(function (d) { return !d.bCritical && d.oCritical; });
+    // ── CPM Validation Summary ──
+    renderCPMValidation(baseline, optimized, diffs);
+
+    // ── Driving Path Chain ──
+    renderDrivingPathChain(baseline, optimized);
+
+    // ── Discrepancies Table ──
+    renderCPMDiscrepancies(baseline, optimized);
+
+    // ── Critical Path Shifts (using CPM-validated flags) ──
+    var gainedFloat   = diffs.filter(function (d) { return d.bCpmCritical && !d.oCpmCritical; }).sort(function (a, b) { return a.finishVar - b.finishVar; });
+    var stillCritical = diffs.filter(function (d) { return d.bCpmCritical && d.oCpmCritical; }).sort(function (a, b) { return a.finishVar - b.finishVar; });
+    var becameCritical = diffs.filter(function (d) { return !d.bCpmCritical && d.oCpmCritical; });
+
+    if (!gainedFloat.length && !stillCritical.length && !becameCritical.length) {
+      gainedFloat   = diffs.filter(function (d) { return d.bCritical && !d.oCritical; }).sort(function (a, b) { return a.finishVar - b.finishVar; });
+      stillCritical = diffs.filter(function (d) { return d.bCritical && d.oCritical; }).sort(function (a, b) { return a.finishVar - b.finishVar; });
+      becameCritical = diffs.filter(function (d) { return !d.bCritical && d.oCritical; });
+    }
 
     document.getElementById('cp-stats-grid').innerHTML =
       '<div class="stat-card success"><div class="stat-label">Moved Off Critical Path</div><div class="stat-value">' + gainedFloat.length + '</div><div class="stat-detail">Now have schedule buffer</div></div>' +
       '<div class="stat-card warn"><div class="stat-label">Moved Onto Critical Path</div><div class="stat-value">' + becameCritical.length + '</div><div class="stat-detail">Now driving project end</div></div>' +
-      '<div class="stat-card accent"><div class="stat-label">Near-Critical in Both</div><div class="stat-value">' + stillCritical.length + '</div><div class="stat-detail">Close to project completion in both</div></div>';
+      '<div class="stat-card accent"><div class="stat-label">Near-Critical in Both</div><div class="stat-value">' + stillCritical.length + '</div><div class="stat-detail">Remain on or near driving path</div></div>';
 
     function renderCPList(el, items, limit) {
       limit = limit || 15;
@@ -322,15 +339,24 @@
     renderCPList(document.getElementById('cp-gained-float'), gainedFloat.concat(becameCritical));
     renderCPList(document.getElementById('cp-near-critical'), stillCritical);
 
-    // ── Gantt Chart: Critical Path Comparison ──
-    var cpDiffs = diffs.filter(function (d) { return d.bCritical || d.oCritical; })
+    // ── Gantt Chart: Critical Path Comparison (using CPM driving-path tasks) ──
+    var cpDiffs = diffs.filter(function (d) {
+        return d.bCpmCritical || d.oCpmCritical || d.bOnDrivingPath || d.oOnDrivingPath;
+      })
       .filter(function (d) { return d.bStart && d.bEnd && d.oStart && d.oEnd; })
       .sort(function (a, b) { return a.oStart - b.oStart; })
-      .slice(0, 25);
+      .slice(0, 30);
+
+    if (!cpDiffs.length) {
+      cpDiffs = diffs.filter(function (d) { return d.bCritical || d.oCritical; })
+        .filter(function (d) { return d.bStart && d.bEnd && d.oStart && d.oEnd; })
+        .sort(function (a, b) { return a.oStart - b.oStart; })
+        .slice(0, 25);
+    }
 
     if (cpDiffs.length > 0) {
       var ganttTraces = [];
-      var yLabels = cpDiffs.map(function (d, i) { return d.task_name.substring(0, 40); });
+      var yLabels = cpDiffs.map(function (d) { return d.task_name.substring(0, 40); });
 
       for (var gi = 0; gi < cpDiffs.length; gi++) {
         var gd = cpDiffs[gi];
@@ -362,6 +388,132 @@
         legend: { font: { color: '#8899bb' }, orientation: 'h', y: 1.02 },
         hovermode: 'closest',
       });
+    }
+  }
+
+  // ── CPM Validation Summary ──
+  function renderCPMValidation(baseline, optimized, diffs) {
+    var bv = baseline.cpmValidation || {};
+    var ov = optimized.cpmValidation || {};
+    var bDP = (baseline.drivingPath || []).length;
+    var oDP = (optimized.drivingPath || []).length;
+
+    var bCritCount = 0, oCritCount = 0;
+    var tasks = Object.values(baseline.taskById);
+    for (var i = 0; i < tasks.length; i++) { if (tasks[i].cpmCritical) bCritCount++; }
+    var oTasks = Object.values(optimized.taskById);
+    for (var j = 0; j < oTasks.length; j++) { if (oTasks[j].cpmCritical) oCritCount++; }
+
+    var totalDisc = (bv.aliceOnlyCritical || 0) + (bv.cpmOnlyCritical || 0)
+                  + (ov.aliceOnlyCritical || 0) + (ov.cpmOnlyCritical || 0);
+
+    var discClass = totalDisc === 0 ? 'success' : totalDisc <= 10 ? 'accent' : 'warn';
+
+    document.getElementById('cpm-validation-grid').innerHTML =
+      '<div class="stat-card accent"><div class="stat-label">Baseline CPM-Critical</div><div class="stat-value">' + bCritCount + '</div><div class="stat-detail">Driving path: ' + bDP + ' activities</div></div>' +
+      '<div class="stat-card accent"><div class="stat-label">Optimized CPM-Critical</div><div class="stat-value">' + oCritCount + '</div><div class="stat-detail">Driving path: ' + oDP + ' activities</div></div>' +
+      '<div class="stat-card ' + discClass + '"><div class="stat-label">Validation Agreement</div><div class="stat-value">' + (bv.agreementPct || 100) + '%</div><div class="stat-detail">' + totalDisc + ' discrepancies found</div></div>';
+  }
+
+  // ── Driving Path Chain ──
+  function renderDrivingPathChain(baseline, optimized) {
+    var wrap = document.getElementById('driving-path-wrap');
+    var el = document.getElementById('driving-path-chain');
+    if (!wrap || !el) return;
+
+    var bPath = baseline.drivingPath || [];
+    var oPath = optimized.drivingPath || [];
+    var showPath = oPath.length >= bPath.length ? oPath : bPath;
+    var label = oPath.length >= bPath.length ? 'Optimized' : 'Baseline';
+
+    if (!showPath.length) { wrap.style.display = 'none'; return; }
+    wrap.style.display = '';
+
+    var maxShow = 20;
+    var displayed = showPath.length > maxShow
+      ? showPath.slice(0, 5).concat([null]).concat(showPath.slice(-10))
+      : showPath;
+
+    var html = '<div style="font-size:11px;color:var(--text-muted);margin-bottom:8px">' + label + ' driving path (' + showPath.length + ' activities)</div>';
+    html += '<div class="dp-chain">';
+
+    for (var i = 0; i < displayed.length; i++) {
+      var t = displayed[i];
+      if (!t) {
+        html += '<div class="dp-ellipsis">\u2026</div>';
+        continue;
+      }
+      var floatTxt = t.cpmFloatDays != null ? t.cpmFloatDays.toFixed(1) + 'd' : '\u2014';
+      var shortName = t.task_name.length > 35 ? t.task_name.substring(0, 35) + '\u2026' : t.task_name;
+      html += '<div class="dp-node" title="' + t.task_name + '\nFloat: ' + floatTxt + '">';
+      html += '<div class="dp-node-name">' + shortName + '</div>';
+      html += '<div class="dp-node-meta">' + fmtDate(t.early_start) + ' \u2192 ' + fmtDate(t.early_end) + '</div>';
+      html += '<div class="dp-node-float">Float: ' + floatTxt + '</div>';
+      html += '</div>';
+      if (i < displayed.length - 1 && displayed[i + 1]) {
+        html += '<div class="dp-arrow">\u2192</div>';
+      }
+    }
+    html += '</div>';
+    el.innerHTML = html;
+  }
+
+  // ── Discrepancies Table ──
+  function renderCPMDiscrepancies(baseline, optimized) {
+    var wrap = document.getElementById('cpm-discrepancies-wrap');
+    var body = document.getElementById('cpm-discrepancy-body');
+    if (!wrap || !body) return;
+
+    var rows = [];
+
+    function collectDiscrepancies(sched, label) {
+      var tasks = Object.values(sched.taskById);
+      for (var i = 0; i < tasks.length; i++) {
+        var t = tasks[i];
+        if (!t.early_start || !t.early_end) continue;
+        var aliceCrit = t.isCritical || (t.aliceFloatDays != null && t.aliceFloatDays <= 0);
+        var cpmCrit = !!t.cpmCritical;
+        if (aliceCrit === cpmCrit) continue;
+
+        rows.push({
+          name: t.task_name,
+          block: t.blockNotation || t.blockNum || '\u2014',
+          aliceFlag: t.isCritical ? 'Critical' : 'Non-critical',
+          aliceFloat: t.aliceFloatDays != null ? t.aliceFloatDays.toFixed(1) + 'd' : '\u2014',
+          cpmFloat: t.cpmFloatDays != null ? t.cpmFloatDays.toFixed(1) + 'd' : '\u2014',
+          status: aliceCrit && !cpmCrit
+            ? '<span style="color:#f59e0b">ALICE-only critical</span>'
+            : '<span style="color:#a78bfa">CPM-only critical</span>',
+          schedule: label,
+          absFloat: Math.abs(t.cpmFloatDays || 0),
+        });
+      }
+    }
+
+    collectDiscrepancies(baseline, 'Baseline');
+    collectDiscrepancies(optimized, 'Optimized');
+
+    rows.sort(function (a, b) { return a.absFloat - b.absFloat; });
+
+    if (!rows.length) {
+      wrap.style.display = 'none';
+      return;
+    }
+
+    wrap.style.display = '';
+    var maxRows = 30;
+    body.innerHTML = rows.slice(0, maxRows).map(function (r) {
+      var shortName = r.name.length > 50 ? r.name.substring(0, 50) + '\u2026' : r.name;
+      return '<tr><td title="' + r.name + ' (' + r.schedule + ')">' + shortName + ' <span style="font-size:10px;color:var(--text-dim)">(' + r.schedule + ')</span></td>' +
+        '<td>' + r.block + '</td>' +
+        '<td>' + r.aliceFlag + '</td>' +
+        '<td>' + r.aliceFloat + '</td>' +
+        '<td>' + r.cpmFloat + '</td>' +
+        '<td>' + r.status + '</td></tr>';
+    }).join('');
+
+    if (rows.length > maxRows) {
+      body.innerHTML += '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);font-size:12px">\u2026 and ' + (rows.length - maxRows) + ' more</td></tr>';
     }
   }
 

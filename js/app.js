@@ -99,6 +99,12 @@
     var baseline  = ATT.buildScheduleFromCSV(baselineRows,  APP.baselineFile ? APP.baselineFile.name : 'Baseline');
     var optimized = ATT.buildScheduleFromCSV(optimizedRows, APP.optimizedFile ? APP.optimizedFile.name : 'Optimized');
 
+    setLoadingStage('Running CPM validation\u2026', 48);
+    await ATT.sleep(20);
+
+    ATT.runCPM(baseline);
+    ATT.runCPM(optimized);
+
     setLoadingStage('Matching activities\u2026', 55);
     await ATT.sleep(30);
 

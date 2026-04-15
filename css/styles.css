@@ -403,3 +403,31 @@ body {
   background: rgba(245,158,11,.06); border-top: 1px solid rgba(245,158,11,.2);
   color: var(--warn);
 }
+
+/* ── Driving Path Chain ── */
+.dp-chain {
+  display: flex; align-items: center; gap: 4px; flex-wrap: wrap;
+  padding: 8px 0;
+}
+.dp-node {
+  background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
+  padding: 8px 12px; min-width: 160px; max-width: 240px; flex-shrink: 0;
+  cursor: default; transition: border-color .15s;
+}
+.dp-node:hover { border-color: var(--accent); }
+.dp-node-name {
+  font-size: 11.5px; font-weight: 600; color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.dp-node-meta {
+  font-size: 10px; color: var(--text-muted); margin-top: 3px;
+}
+.dp-node-float {
+  font-size: 10px; color: var(--accent); margin-top: 2px; font-weight: 600;
+}
+.dp-arrow {
+  font-size: 16px; color: var(--text-dim); flex-shrink: 0; padding: 0 2px;
+}
+.dp-ellipsis {
+  font-size: 18px; color: var(--text-dim); padding: 0 6px; letter-spacing: 2px;
+}

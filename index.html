@@ -216,8 +216,37 @@
       <!-- TAB: Critical Path -->
       <div class="tab-panel" id="tab-critical">
         <div class="section-header">
+          <div class="section-title">Critical Path Validation</div>
+          <div class="section-sub">Independent CPM recalculation to validate ALICE&rsquo;s critical path flags</div>
+        </div>
+
+        <!-- CPM validation summary -->
+        <div class="stats-grid" id="cpm-validation-grid" style="margin-bottom:12px"></div>
+
+        <!-- Driving path chain -->
+        <div class="chart-wrap" id="driving-path-wrap" style="display:none">
+          <div class="chart-title">Driving Path Chain</div>
+          <div class="chart-sub">Longest path through the network traced backward from project end</div>
+          <div id="driving-path-chain" style="overflow-x:auto;padding:8px 0"></div>
+        </div>
+
+        <!-- Discrepancies -->
+        <div id="cpm-discrepancies-wrap" style="display:none;margin-top:16px">
+          <div class="section-header">
+            <div class="section-title" style="font-size:15px">Discrepancies &mdash; ALICE vs CPM</div>
+            <div class="section-sub">Activities where ALICE&rsquo;s critical flag disagrees with the recalculated float</div>
+          </div>
+          <div class="data-table-wrap">
+            <table class="data-table" id="cpm-discrepancy-table">
+              <thead><tr><th>Activity</th><th>Block</th><th>ALICE Flag</th><th>ALICE Float</th><th>CPM Float</th><th>Status</th></tr></thead>
+              <tbody id="cpm-discrepancy-body"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="section-header" style="margin-top:24px">
           <div class="section-title">Critical Path Shifts</div>
-          <div class="section-sub">Activities that moved onto or off the critical path, and where schedule slack changed</div>
+          <div class="section-sub">Activities that moved onto or off the driving path between scenarios</div>
         </div>
         <div class="stats-grid" id="cp-stats-grid" style="margin-bottom:20px"></div>
         <div class="chart-wrap">
@@ -276,6 +305,7 @@
 <script src="js/utils.js"></script>
 <script src="js/csv-parser.js"></script>
 <script src="js/crew-parser.js"></script>
+<script src="js/cpm-engine.js"></script>
 <script src="js/schedule-model.js"></script>
 <script src="js/matcher.js"></script>
 <script src="js/differ.js"></script>
