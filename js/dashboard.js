@@ -256,28 +256,6 @@
       renderAliceCrewCurves(R.bCrewData, R.oCrewData);
     }
 
-    // Activity density
-    var commodities = Array.from(new Set(diffs.map(function (d) { return d.commodity; }))).filter(function (c) { return c !== 'Other'; });
-    var startsByMonth = {};
-    for (var i = 0; i < diffs.length; i++) {
-      var d = diffs[i];
-      if (!d.oStart) continue;
-      var m = d.oStart.getFullYear() + '-' + String(d.oStart.getMonth() + 1).padStart(2, '0');
-      if (!startsByMonth[m]) startsByMonth[m] = {};
-      startsByMonth[m][d.commodity] = (startsByMonth[m][d.commodity] || 0) + 1;
-    }
-    var densMonths = Object.keys(startsByMonth).sort();
-    var densColors = ['#4f8ef7', '#22d3a8', '#f59e0b', '#a78bfa', '#f472b6', '#60a5fa', '#34d399', '#fb7185'];
-    var densTraces = commodities.map(function (c, idx) {
-      return { type: 'bar', name: c, x: densMonths, y: densMonths.map(function (m) { return startsByMonth[m][c] || 0; }), marker: { color: densColors[idx % densColors.length] } };
-    });
-    plotDark('chart-density', densTraces, {
-      barmode: 'stack',
-      xaxis: { color: '#e2e8f0', tickangle: -30, type: 'category' },
-      yaxis: { title: 'Activities starting', color: '#8899bb', gridcolor: '#2a3050' },
-      margin: { l: 60, r: 20, t: 10, b: 80 }, height: 300,
-      legend: { font: { size: 10, color: '#8899bb' } },
-    });
   }
 
   // ── Critical Path ──
