@@ -9,18 +9,15 @@
   var dateDiffDays = ATT.dateDiffDays;
   var plotDark = ATT.plotDark;
 
-  var tableSort = { col: 'finishVar', dir: 1 };
 
   // ── Master render ──
   ATT.renderDashboard = function (R) {
     renderExecutiveSummary(R);
     renderEPCActions(R);
     renderTacticBuckets(R);
-    renderAreaCommodity(R);
+    renderWorkfrontSequences(R);
     renderCrewTimeline(R);
     renderCriticalPath(R);
-    populateFilters(R);
-    ATT.renderActivityTable();
   };
 
   // ── Executive Summary ──
@@ -201,51 +198,210 @@
     }).join('');
   }
 
-  // ── Area & Commodity ──
-  function renderAreaCommodity(R) {
-    var aggregations = R.aggregations;
+  // ── Workfront Sequences ──
+  var _wfCache = null;
 
-    var blocks = Object.entries(aggregations.byBlock)
-      .filter(function (e) { return e[0] && e[0] !== 'General'; })
-      .map(function (e) { return { block: e[0], avgShift: e[1].totalFinishVar / e[1].count }; })
-      .sort(function (a, b) { return a.avgShift - b.avgShift; });
+  function renderWorkfrontSequences(R) {
+    var baseline = R.baseline, optimized = R.optimized;
 
-    plotDark('chart-block', [{
-      type: 'bar',
-      x: blocks.map(function (b) { return 'Block ' + b.block; }),
-      y: blocks.map(function (b) { return -b.avgShift; }),
-      marker: { color: blocks.map(function (b) { return b.avgShift < 0 ? '#22d3a8' : '#ef4444'; }) },
-      hovertemplate: '<b>%{x}</b><br>Avg: %{y:.1f} days earlier<extra></extra>',
-    }], {
-      xaxis: { color: '#e2e8f0' },
-      yaxis: { title: 'Avg days earlier (positive = improvement)', color: '#8899bb', gridcolor: '#2a3050' },
-      margin: { l: 60, r: 20, t: 10, b: 40 },
-      height: 300,
-    });
+    var byCommodity = {};
 
-    // Tactic mix by trade
-    var commodities = Object.keys(aggregations.byCommodity)
-      .filter(function (c) { return c !== 'Other' && c !== 'Milestones'; })
-      .sort(function (a, b) { return aggregations.byCommodity[b].count - aggregations.byCommodity[a].count; })
-      .slice(0, 9);
+    function collectTasks(sched, tag) {
+      var tasks = Object.values(sched.taskById);
+      for (var i = 0; i < tasks.length; i++) {
+        var t = tasks[i];
+        if (!t.early_start || !t.early_end) continue;
+        if (!t.blockNotation && !t.blockNum) continue;
+        var comm = t.commodity;
+        if (comm === 'Other' || comm === 'Milestones') continue;
+        if (!byCommodity[comm]) byCommodity[comm] = {};
+        var blk = t.blockNotation || ('Block ' + t.blockNum);
+        if (!byCommodity[comm][blk]) byCommodity[comm][blk] = { baseline: null, optimized: null };
+        var cur = byCommodity[comm][blk][tag];
+        if (!cur || t.early_start < cur.start) {
+          byCommodity[comm][blk][tag] = {
+            start: t.early_start,
+            end: cur ? (t.early_end > cur.end ? t.early_end : cur.end) : t.early_end,
+            taskCount: cur ? cur.taskCount + 1 : 1,
+          };
+        } else {
+          if (t.early_end > cur.end) cur.end = t.early_end;
+          cur.taskCount++;
+        }
+      }
+    }
 
-    var stackedTraces = Object.values(TACTICS).map(function (tname) {
-      var vals = commodities.map(function (c) {
-        var cdiffs = aggregations.byCommodity[c] ? aggregations.byCommodity[c].diffs : [];
-        return cdiffs.filter(function (d) { return d.tactics.some(function (t) { return t.tactic === tname; }); }).length;
+    collectTasks(baseline, 'baseline');
+    collectTasks(optimized, 'optimized');
+
+    var commodityNames = Object.keys(byCommodity).sort();
+
+    var sel = document.getElementById('wf-commodity-filter');
+    if (sel) {
+      sel.innerHTML = '<option value="__all__">All Trades</option>' +
+        commodityNames.map(function (c) { return '<option value="' + c + '">' + c + '</option>'; }).join('');
+    }
+
+    _wfCache = { byCommodity: byCommodity, commodityNames: commodityNames };
+    ATT.updateWorkfrontChart();
+  }
+
+  ATT.updateWorkfrontChart = function () {
+    if (!_wfCache) return;
+    var selComm = document.getElementById('wf-commodity-filter');
+    var selScen = document.getElementById('wf-scenario-filter');
+    var chosenComm = selComm ? selComm.value : '__all__';
+    var chosenScen = selScen ? selScen.value : 'both';
+    var data = _wfCache.byCommodity;
+    var MS_PER_DAY = 86400000;
+
+    var rows = [];
+
+    if (chosenComm === '__all__') {
+      var comms = _wfCache.commodityNames;
+      for (var ci = 0; ci < comms.length; ci++) {
+        var comm = comms[ci];
+        var blocks = Object.keys(data[comm]);
+        var sortable = blocks.map(function (blk) {
+          var b = data[comm][blk].baseline;
+          var o = data[comm][blk].optimized;
+          var earliest = b ? b.start : (o ? o.start : new Date());
+          if (o && o.start < earliest) earliest = o.start;
+          return { block: blk, earliest: earliest, data: data[comm][blk], commodity: comm };
+        });
+        sortable.sort(function (a, b) { return a.earliest - b.earliest; });
+        for (var si = 0; si < sortable.length; si++) {
+          rows.push({
+            label: comm + ' \u2014 ' + sortable[si].block,
+            commodity: comm,
+            block: sortable[si].block,
+            seq: si + 1,
+            baseline: sortable[si].data.baseline,
+            optimized: sortable[si].data.optimized,
+          });
+        }
+      }
+    } else {
+      var blocks = Object.keys(data[chosenComm] || {});
+      var sortable = blocks.map(function (blk) {
+        var b = data[chosenComm][blk].baseline;
+        var o = data[chosenComm][blk].optimized;
+        var earliest = b ? b.start : (o ? o.start : new Date());
+        if (o && o.start < earliest) earliest = o.start;
+        return { block: blk, earliest: earliest, data: data[chosenComm][blk] };
       });
-      if (vals.every(function (v) { return v === 0; })) return null;
-      return { type: 'bar', name: tname, x: commodities, y: vals, marker: { color: TACTIC_COLORS[tname] || '#4f8ef7' } };
-    }).filter(Boolean);
+      sortable.sort(function (a, b) { return a.earliest - b.earliest; });
+      for (var si = 0; si < sortable.length; si++) {
+        rows.push({
+          label: sortable[si].block,
+          commodity: chosenComm,
+          block: sortable[si].block,
+          seq: si + 1,
+          baseline: sortable[si].data.baseline,
+          optimized: sortable[si].data.optimized,
+        });
+      }
+    }
 
-    plotDark('chart-trade-mix', stackedTraces, {
-      barmode: 'stack',
-      xaxis: { color: '#e2e8f0', tickangle: -30, tickfont: { size: 10 } },
-      yaxis: { title: 'Activity count', color: '#8899bb', gridcolor: '#2a3050' },
-      margin: { l: 50, r: 10, t: 10, b: 100 },
-      height: 300,
-      legend: { font: { size: 10, color: '#8899bb' } },
+    var titleEl = document.getElementById('wf-chart-title');
+    var subEl = document.getElementById('wf-chart-sub');
+    if (titleEl) titleEl.textContent = chosenComm === '__all__' ? 'All Trades \u2014 Block Progression' : chosenComm + ' \u2014 Block Progression';
+    if (subEl) subEl.textContent = 'Blocks ordered by earliest activity start \u2014 bars show work windows';
+
+    var yLabels = rows.map(function (r) { return r.label; });
+    var traces = [];
+
+    if (chosenScen === 'both' || chosenScen === 'baseline') {
+      traces.push({
+        type: 'scatter', mode: 'lines', name: 'Baseline',
+        x: [], y: [], line: { color: 'rgba(79,142,247,0.9)', width: 14 },
+        hoverinfo: 'text', text: [],
+      });
+      for (var i = 0; i < rows.length; i++) {
+        var b = rows[i].baseline;
+        if (!b) continue;
+        var dur = Math.round((b.end - b.start) / MS_PER_DAY);
+        traces[traces.length - 1].x.push(b.start, b.end, null);
+        traces[traces.length - 1].y.push(yLabels[i], yLabels[i], null);
+        traces[traces.length - 1].text.push(
+          rows[i].label + '<br>Baseline: ' + fmtDate(b.start) + ' \u2013 ' + fmtDate(b.end) + ' (' + dur + 'd, ' + b.taskCount + ' tasks)',
+          rows[i].label + '<br>Baseline: ' + fmtDate(b.start) + ' \u2013 ' + fmtDate(b.end) + ' (' + dur + 'd, ' + b.taskCount + ' tasks)',
+          null
+        );
+      }
+    }
+
+    if (chosenScen === 'both' || chosenScen === 'optimized') {
+      traces.push({
+        type: 'scatter', mode: 'lines', name: 'Optimized',
+        x: [], y: [], line: { color: 'rgba(34,211,168,0.9)', width: 8 },
+        hoverinfo: 'text', text: [],
+      });
+      for (var i = 0; i < rows.length; i++) {
+        var o = rows[i].optimized;
+        if (!o) continue;
+        var dur = Math.round((o.end - o.start) / MS_PER_DAY);
+        traces[traces.length - 1].x.push(o.start, o.end, null);
+        traces[traces.length - 1].y.push(yLabels[i], yLabels[i], null);
+        traces[traces.length - 1].text.push(
+          rows[i].label + '<br>Optimized: ' + fmtDate(o.start) + ' \u2013 ' + fmtDate(o.end) + ' (' + dur + 'd, ' + o.taskCount + ' tasks)',
+          rows[i].label + '<br>Optimized: ' + fmtDate(o.start) + ' \u2013 ' + fmtDate(o.end) + ' (' + dur + 'd, ' + o.taskCount + ' tasks)',
+          null
+        );
+      }
+    }
+
+    plotDark('chart-workfront', traces, {
+      xaxis: { type: 'date', color: '#8899bb', gridcolor: '#2a3050' },
+      yaxis: {
+        categoryorder: 'array', categoryarray: yLabels.slice().reverse(),
+        color: '#e2e8f0', tickfont: { size: 10 },
+      },
+      margin: { l: chosenComm === '__all__' ? 260 : 120, r: 30, t: 10, b: 50 },
+      height: Math.max(350, rows.length * 28 + 80),
+      hovermode: 'closest',
+      legend: { font: { color: '#8899bb' }, orientation: 'h', y: 1.05 },
     });
+
+    renderWorkfrontSummary(rows, chosenComm, chosenScen, MS_PER_DAY);
+  };
+
+  function renderWorkfrontSummary(rows, comm, scenario, MS_PER_DAY) {
+    var el = document.getElementById('wf-sequence-summary');
+    if (!el) return;
+
+    if (comm === '__all__' || rows.length === 0) {
+      el.style.display = 'none';
+      return;
+    }
+
+    var seqB = [], seqO = [];
+    for (var i = 0; i < rows.length; i++) {
+      if (rows[i].baseline) seqB.push({ block: rows[i].block, start: rows[i].baseline.start });
+      if (rows[i].optimized) seqO.push({ block: rows[i].block, start: rows[i].optimized.start });
+    }
+    seqB.sort(function (a, b) { return a.start - b.start; });
+    seqO.sort(function (a, b) { return a.start - b.start; });
+
+    var bSeqStr = seqB.map(function (s) { return s.block; }).join(' \u2192 ');
+    var oSeqStr = seqO.map(function (s) { return s.block; }).join(' \u2192 ');
+
+    var resequenced = bSeqStr !== oSeqStr;
+
+    var html = '<div style="font-size:13px;font-weight:700;margin-bottom:8px">' + comm + ' Progression Order</div>';
+    if (scenario === 'both' || scenario === 'baseline') {
+      html += '<div class="cp-summary-row"><span class="cp-summary-label">Baseline:</span> <span>' + (bSeqStr || '\u2014') + '</span> <span style="color:var(--text-dim);margin-left:8px">(' + seqB.length + ' blocks)</span></div>';
+    }
+    if (scenario === 'both' || scenario === 'optimized') {
+      html += '<div class="cp-summary-row"><span class="cp-summary-label">Optimized:</span> <span>' + (oSeqStr || '\u2014') + '</span> <span style="color:var(--text-dim);margin-left:8px">(' + seqO.length + ' blocks)</span></div>';
+    }
+    if (scenario === 'both' && resequenced) {
+      html += '<div style="margin-top:8px;padding:8px 12px;background:rgba(245,158,11,.07);border-radius:6px;border:1px solid rgba(245,158,11,.2);font-size:12px;color:#f59e0b">' +
+        '\u26A0 Block progression order changed between scenarios \u2014 workfront resequencing detected</div>';
+    }
+
+    el.style.display = '';
+    el.innerHTML = html;
   }
 
   // ── Crew Timeline ──
@@ -672,65 +828,8 @@
     }).join('');
   }
 
-  // ── Activity Table ──
-  function populateFilters(R) {
-    var diffs = R.diffs;
-    var comms = Array.from(new Set(diffs.map(function (d) { return d.commodity; }))).sort();
-    var blocks = Array.from(new Set(diffs.map(function (d) { return d.blockNum; }).filter(Boolean))).sort(function (a, b) { return a - b; });
-    var tactics = Array.from(new Set(diffs.flatMap(function (d) { return d.tactics.map(function (t) { return t.tactic; }); }))).filter(function (t) { return t !== 'No Change'; }).sort();
-
-    document.getElementById('filter-commodity').innerHTML = '<option value="">All Trades</option>' + comms.map(function (c) { return '<option value="' + c + '">' + c + '</option>'; }).join('');
-    document.getElementById('filter-block').innerHTML = '<option value="">All Blocks</option>' + blocks.map(function (b) { return '<option value="' + b + '">Block ' + b + '</option>'; }).join('');
-    document.getElementById('filter-tactic').innerHTML = '<option value="">All Tactics</option>' + tactics.map(function (t) { return '<option value="' + t + '">' + t + '</option>'; }).join('');
-  }
-
   ATT.filterByTactic = function (tacticName) {
-    ATT.switchTab('areas');
-    setTimeout(function () {
-      document.getElementById('filter-tactic').value = tacticName;
-      ATT.renderActivityTable();
-    }, 80);
-  };
-
-  ATT.sortTable = function (col) {
-    tableSort = { col: col, dir: tableSort.col === col ? -tableSort.dir : 1 };
-    ATT.renderActivityTable();
-  };
-
-  ATT.renderActivityTable = function () {
-    if (!window.APP || !window.APP.results) return;
-    var diffs = window.APP.results.diffs;
-    var fComm = document.getElementById('filter-commodity').value;
-    var fBlock = document.getElementById('filter-block').value;
-    var fTactic = document.getElementById('filter-tactic').value;
-    var fImpact = document.getElementById('filter-impact').value;
-
-    var filtered = diffs.filter(function (d) {
-      if (fComm && d.commodity !== fComm) return false;
-      if (fBlock && d.blockNum !== fBlock) return false;
-      if (fTactic && !d.tactics.some(function (t) { return t.tactic === fTactic; })) return false;
-      if (fImpact === 'improved' && d.finishVar >= -0.5) return false;
-      if (fImpact === 'worsened' && d.finishVar <= 0.5) return false;
-      if (fImpact === 'major' && Math.abs(d.finishVar) <= 7) return false;
-      return true;
-    });
-
-    filtered.sort(function (a, b) {
-      var va = a[tableSort.col], vb = b[tableSort.col];
-      if (typeof va === 'string') return tableSort.dir * va.localeCompare(vb);
-      return tableSort.dir * ((va || 0) - (vb || 0));
-    });
-
-    var shown = filtered.slice(0, 200);
-    document.getElementById('activity-table-body').innerHTML = shown.map(function (d) {
-      var ptac = d.tactics[0] || { tactic: 'No Change' };
-      var color = TACTIC_COLORS[ptac.tactic] || '#4f8ef7';
-      return '<tr><td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + d.task_name + '">' + d.task_name + '</td><td><span style="font-size:11px">' + d.commodity + '</span></td><td>' + (d.blockNotation || d.blockNum || '\u2014') + '</td><td>' + (d.startVar ? '<span class="badge ' + (d.startVar < -0.5 ? 'badge-neg' : d.startVar > 0.5 ? 'badge-pos' : '') + '">' + fmtDays(d.startVar, true) + '</span>' : '\u2014') + '</td><td>' + (d.finishVar ? '<span class="badge ' + (d.finishVar < -0.5 ? 'badge-neg' : d.finishVar > 0.5 ? 'badge-pos' : '') + '">' + fmtDays(d.finishVar, true) + '</span>' : '\u2014') + '</td><td>' + (d.durVar ? fmtDays(d.durVar, true) : '\u2014') + '</td><td>' + (d.floatVar ? (d.floatVar > 0 ? '+' : '') + d.floatVar.toFixed(1) + 'd' : '\u2014') + '</td><td>' + (d.laborVar !== 0 ? (d.laborVar > 0 ? '+' : '') + d.laborVar.toFixed(1) : '\u2014') + '</td><td><span class="badge badge-tactic" style="background:' + color + '20;color:' + color + '">' + ptac.tactic + '</span></td></tr>';
-    }).join('');
-
-    document.getElementById('activity-table-footer').textContent =
-      'Showing ' + shown.length + ' of ' + filtered.length + ' activities' +
-      (filtered.length < diffs.length ? ' (' + diffs.length + ' total)' : '');
+    ATT.switchTab('workfronts');
   };
 
   // ── ALICE Crew Curves (single chart with filter) ──

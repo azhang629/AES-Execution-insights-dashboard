@@ -44,6 +44,25 @@
   ATT.classifyCommodity = classifyCommodity;
   ATT.extractBlockNotation = extractBlockNotation;
 
+  function parsePredString(raw) {
+    raw = raw.trim();
+    if (!raw) return null;
+    var m = raw.match(/^(.+?)\s*(FS|SS|FF|SF)\s*([+\-]\s*\d+(?:\.\d+)?\s*[dDhH]?)?\s*$/i);
+    if (m) {
+      var lagDays = 0;
+      if (m[3]) {
+        var ls = m[3].replace(/\s+/g, '');
+        var isH = /[hH]$/.test(ls);
+        ls = ls.replace(/[dDhH]$/, '');
+        lagDays = parseFloat(ls) || 0;
+        if (isH) lagDays = lagDays / 24;
+      }
+      return { id: m[1].trim(), relType: m[2].toUpperCase(), lagDays: lagDays };
+    }
+    var id = raw.replace(/\s*(FS|SS|FF|SF)\s*/i, '').replace(/[+\-]\s*\d+(\.\d+)?\s*[dDhH]?\s*$/, '').trim();
+    return id ? { id: id, relType: 'FS', lagDays: 0 } : null;
+  }
+
   ATT.buildScheduleFromCSV = function (rows, name) {
     var sched = { name: name, sourceFormat: 'csv' };
     sched.taskById = {};
@@ -100,8 +119,8 @@
         isCritical:     criticalFlag,
         clndr_id:       null,
         wbs_id:         row['WBS Outline'] || '',
-        cstr_type:      '',
-        cstr_date:      '',
+        cstr_type:      (row['Primary Constraint Type'] || row['Constraint Type'] || row['Primary Constraint'] || '').trim(),
+        cstr_date:      parseDate(row['Primary Constraint Date'] || row['Constraint Date'] || ''),
         commodity:      classifyCommodity(row['Task Name'], row['Trade']),
         trade:          row['Trade'] || '',
         blockNotation:  blockNotation,
@@ -131,23 +150,22 @@
       var predStr = r['Predecessors'] || '';
       if (!predStr.trim()) continue;
 
-      var predIds = [];
+      var predEntries = [];
       var seen = {};
       predStr.split(',').forEach(function (s) {
-        var raw = s.trim();
-        if (!raw) return;
-        // Strip relationship types (FS, SS, FF, SF) and lag notation (+5d, -2d, etc.)
-        var id = raw.replace(/\s*(FS|SS|FF|SF)\s*/i, '').replace(/[+\-]\s*\d+(\.\d+)?\s*[dDhH]?\s*$/, '').trim();
-        if (!id) id = raw;
-        if (id && !seen[id]) { predIds.push(id); seen[id] = true; }
+        var parsed = parsePredString(s);
+        if (!parsed || !parsed.id) return;
+        if (seen[parsed.id]) return;
+        seen[parsed.id] = true;
+        predEntries.push(parsed);
       });
 
       if (!sched.predByTaskId[tc]) sched.predByTaskId[tc] = [];
-      for (var k = 0; k < predIds.length; k++) {
-        var pid = predIds[k];
-        sched.predByTaskId[tc].push({ pred_task_id: pid, pred_type: 'PR_FS', lag_hr: null });
-        if (!sched.succByTaskId[pid]) sched.succByTaskId[pid] = [];
-        sched.succByTaskId[pid].push({ task_id: tc, pred_type: 'PR_FS', lag_hr: null });
+      for (var k = 0; k < predEntries.length; k++) {
+        var pe = predEntries[k];
+        sched.predByTaskId[tc].push({ pred_task_id: pe.id, pred_type: 'PR_' + pe.relType, rel_type: pe.relType, lag_hr: null, lag_days: pe.lagDays });
+        if (!sched.succByTaskId[pe.id]) sched.succByTaskId[pe.id] = [];
+        sched.succByTaskId[pe.id].push({ task_id: tc, pred_type: 'PR_' + pe.relType, rel_type: pe.relType, lag_hr: null, lag_days: pe.lagDays });
       }
     }
 
