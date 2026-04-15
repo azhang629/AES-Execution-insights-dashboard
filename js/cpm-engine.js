@@ -198,7 +198,7 @@
   // ── Longest Path: trace backward through the longest-distance predecessor chain ──
   function buildLongestPath(sched, lpPred, endId, dist) {
     if (!endId) return [];
-    var path = [];
+    var rawPath = [];
     var visited = {};
     var current = endId;
     var maxSteps = Object.keys(sched.taskById).length;
@@ -208,12 +208,46 @@
       var task = sched.taskById[current];
       if (task) {
         task.onDrivingPath = true;
-        path.unshift(task);
+        rawPath.unshift(task);
       }
       current = lpPred[current] || null;
     }
 
-    return path.filter(function (t) { return !SKIP_RE.test(t.task_name); });
+    var filtered = rawPath.filter(function (t) {
+      return !SKIP_RE.test(t.task_name) && t.early_start && t.early_end;
+    });
+
+    return enforceSequential(filtered);
+  }
+
+  // Remove overlapping tasks so the path is a strict stair-step.
+  // When tasks overlap (SS/FF relationships in ALICE), keep only
+  // the driving portion by clipping or removing contained tasks.
+  function enforceSequential(path) {
+    if (path.length <= 1) return path;
+
+    path.sort(function (a, b) { return a.early_start - b.early_start; });
+
+    var result = [];
+    for (var i = 0; i < path.length; i++) {
+      var t = path[i];
+      if (!result.length) { result.push(t); continue; }
+
+      var prev = result[result.length - 1];
+
+      // Skip tasks entirely contained within the previous task
+      if (t.early_end <= prev.early_end) continue;
+
+      // If this task overlaps with the previous, record the driving
+      // start point (where this task extends beyond the previous).
+      if (t.early_start < prev.early_end) {
+        t._displayStart = prev.early_end;
+      }
+
+      result.push(t);
+    }
+
+    return result;
   }
 
   // ── Zero Float: use ALICE's own float data, group into connected paths ──
@@ -304,7 +338,13 @@
 
   // ── Public: recompute zero-float paths with custom tolerance ──
   ATT.getZeroFloatPaths = function (sched, toleranceDays) {
-    return findZeroFloatPaths(sched, toleranceDays);
+    var result = findZeroFloatPaths(sched, toleranceDays);
+    result.allTasks = enforceSequential(result.allTasks);
+    result.totalTasks = result.allTasks.length;
+    for (var i = 0; i < result.paths.length; i++) {
+      result.paths[i] = enforceSequential(result.paths[i]);
+    }
+    return result;
   };
 
   // ── Public: diagnose difference between the two methods ──

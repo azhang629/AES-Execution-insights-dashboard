@@ -411,10 +411,11 @@
         yLabels.push(block ? shortName + ' [' + block + ']' : shortName);
 
         if (entry.b) {
+          var bStart = entry.b._displayStart || entry.b.early_start;
           var bf = entry.b.cpmFloatDays != null ? entry.b.cpmFloatDays.toFixed(1) + 'd' : '\u2014';
           traces.push({
             type: 'scatter', mode: 'lines',
-            x: [entry.b.early_start, entry.b.early_end],
+            x: [bStart, entry.b.early_end],
             y: [ri - 0.18, ri - 0.18],
             line: { color: 'rgba(79,142,247,0.75)', width: 12 },
             name: 'Baseline', legendgroup: 'baseline', showlegend: ri === 0 && !!entry.b,
@@ -422,10 +423,11 @@
           });
         }
         if (entry.o) {
+          var oStart = entry.o._displayStart || entry.o.early_start;
           var of_ = entry.o.cpmFloatDays != null ? entry.o.cpmFloatDays.toFixed(1) + 'd' : '\u2014';
           traces.push({
             type: 'scatter', mode: 'lines',
-            x: [entry.o.early_start, entry.o.early_end],
+            x: [oStart, entry.o.early_end],
             y: [ri + 0.18, ri + 0.18],
             line: { color: 'rgba(34,211,168,0.85)', width: 12 },
             name: 'Optimized', legendgroup: 'optimized', showlegend: ri === 0 && !!entry.o,
@@ -465,20 +467,22 @@
         var sBlock = st.blockNotation || st.blockNum || '';
         yLabels.push(sBlock ? sLabel + ' [' + sBlock + ']' : sLabel);
 
+        var stStart = st._displayStart || st.early_start;
         var sfloat = st.cpmFloatDays != null ? st.cpmFloatDays.toFixed(1) + 'd' : '\u2014';
         traces.push({
           type: 'scatter', mode: 'lines',
-          x: [st.early_start, st.early_end], y: [si, si],
+          x: [stStart, st.early_end], y: [si, si],
           line: { color: barColor, width: 16 },
           showlegend: false,
           hovertemplate: '<b>' + st.task_name.substring(0, 50) + '</b><br>' + fmtDate(st.early_start) + ' \u2192 ' + fmtDate(st.early_end) + '<br>Float: ' + sfloat + '<extra></extra>',
         });
 
-        if (method === 'longest' && si < displayed2.length - 1) {
+        if (si < displayed2.length - 1) {
           var nxt = displayed2[si + 1];
+          var nxtStart = nxt._displayStart || nxt.early_start;
           traces.push({
             type: 'scatter', mode: 'lines',
-            x: [st.early_end, nxt.early_start, nxt.early_start],
+            x: [st.early_end, nxtStart, nxtStart],
             y: [si, si, si + 1],
             line: { color: connColor, width: 1, dash: 'dot' },
             showlegend: false, hoverinfo: 'skip',
