@@ -47,7 +47,7 @@
   function parsePredString(raw) {
     raw = raw.trim();
     if (!raw) return null;
-    var m = raw.match(/^(.+?)\s*(FS|SS|FF|SF)\s*([+\-]\s*\d+(?:\.\d+)?\s*[dDhH]?)?\s*$/i);
+    var m = raw.match(/^(.+?)\s+(FS|SS|FF|SF)\s*([+\-]\s*\d+(?:\.\d+)?\s*[dDhH]?)?\s*$/i);
     if (m) {
       var lagDays = 0;
       if (m[3]) {
@@ -59,8 +59,8 @@
       }
       return { id: m[1].trim(), relType: m[2].toUpperCase(), lagDays: lagDays };
     }
-    var id = raw.replace(/\s*(FS|SS|FF|SF)\s*/i, '').replace(/[+\-]\s*\d+(\.\d+)?\s*[dDhH]?\s*$/, '').trim();
-    return id ? { id: id, relType: 'FS', lagDays: 0 } : null;
+    // No relationship type found — treat entire string as the task ID (FS assumed, no lag)
+    return { id: raw.trim(), relType: 'FS', lagDays: 0 };
   }
 
   ATT.buildScheduleFromCSV = function (rows, name) {
@@ -73,6 +73,10 @@
 
     var headers = rows.length ? Object.keys(rows[0]) : [];
     var crewCols = headers.filter(function (h) { return h.startsWith('Crew: '); });
+    var actIdCol = headers.filter(function (h) {
+      var lc = h.toLowerCase();
+      return lc === 'activity id' || lc === 'alice id' || lc === 'id' || lc === 'activity_id';
+    })[0] || '';
 
     for (var i = 0; i < rows.length; i++) {
       var row = rows[i];
@@ -142,9 +146,13 @@
         rawRow:         row,
       };
 
+      var actId = actIdCol ? (row[actIdCol] || '') : '';
+      task.activity_id = actId;
+
       sched.taskById[taskCode] = task;
       sched.taskByCode[taskCode] = task;
       if (task.task_name) sched.taskByName[task.task_name] = task;
+      if (actId) sched.taskById[actId] = task;
     }
 
     for (var j = 0; j < rows.length; j++) {

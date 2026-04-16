@@ -99,23 +99,35 @@
     return [];
   }
 
-  function lookupPredTask(sched, predId) {
-    if (!predId) return null;
-    var t = sched.taskById[predId] || sched.taskByCode[predId] || sched.taskByName[predId];
-    if (t) return t;
-    var norm = predId.replace(/^A0*/i, '');
-    var ids = Object.keys(sched.taskById);
-    for (var i = 0; i < ids.length; i++) {
-      if (ids[i].replace(/^A0*/i, '') === norm) return sched.taskById[ids[i]];
-    }
-    return null;
+  var _idNameCache = null;
+
+  function buildIdNameMap(baseline, optimized) {
+    var map = {};
+    [baseline, optimized].forEach(function (sched) {
+      if (!sched) return;
+      var seen = {};
+      var byId = sched.taskById || {};
+      var ids = Object.keys(byId);
+      for (var i = 0; i < ids.length; i++) {
+        var t = byId[ids[i]];
+        if (!t || !t.task_name || seen[t.task_id]) continue;
+        seen[t.task_id] = true;
+        var n = t.task_name;
+        map[t.task_id] = n;
+        if (t.task_code) map[t.task_code] = n;
+        if (t.activity_id) map[t.activity_id] = n;
+        var prefix = (t.task_id || '').split('-')[0];
+        if (prefix && !map[prefix]) map[prefix] = n;
+      }
+    });
+    return map;
   }
 
-  function resolveName(predId, primary, secondary) {
-    var t = lookupPredTask(primary, predId);
-    if (t) return t.task_name;
-    var t2 = lookupPredTask(secondary, predId);
-    if (t2) return t2.task_name;
+  function resolveIdToName(predId, idMap) {
+    if (!predId) return predId;
+    if (idMap[predId]) return idMap[predId];
+    var prefix = predId.split('-')[0];
+    if (prefix && idMap[prefix]) return idMap[prefix];
     return predId;
   }
 
@@ -148,6 +160,9 @@
   }
 
   function comparePredecessors(diff, baseline, optimized) {
+    if (!_idNameCache) _idNameCache = buildIdNameMap(baseline, optimized);
+    var idMap = _idNameCache;
+
     var bTask = diff.b, oTask = diff.o;
     var bPreds = baseline.predByTaskId[bTask.task_id] || [];
     var oPreds = optimized.predByTaskId[oTask.task_id] || [];
@@ -155,14 +170,14 @@
     var bNames = {};
     for (var i = 0; i < bPreds.length; i++) {
       var p = bPreds[i];
-      var name = resolveName(p.pred_task_id, baseline, optimized);
+      var name = resolveIdToName(p.pred_task_id, idMap);
       if (name && !bNames[name]) bNames[name] = true;
     }
 
     var oNames = {};
     for (var j = 0; j < oPreds.length; j++) {
       var op = oPreds[j];
-      var oname = resolveName(op.pred_task_id, optimized, baseline);
+      var oname = resolveIdToName(op.pred_task_id, idMap);
       if (oname && !oNames[oname]) oNames[oname] = true;
     }
 
@@ -361,6 +376,7 @@
   }
 
   ATT.generateEPCActions = function (aggregations, diffs, R) {
+    _idNameCache = null;
     var crewBuckets = [];
     var hasAliceCrewData = !!(R.bCrewData && R.oCrewData);
 
