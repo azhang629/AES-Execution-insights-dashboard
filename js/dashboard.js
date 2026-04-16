@@ -96,7 +96,7 @@
 
     // Insights
     document.getElementById('insights-grid').innerHTML = insights.map(function (ins) {
-      return '<div class="insight-card" style="border-left-color:' + (TACTIC_COLORS[ins.tactic] || '#4f8ef7') + '"><div class="insight-tactic">' + ins.tactic + '</div><div class="insight-text">' + ins.text + '<br><br><em style="color:var(--text-muted)">' + ins.exec + '</em></div>' + (ins.days ? '<div class="insight-impact">~' + ins.days + ' days</div>' : '') + '</div>';
+      return '<div class="insight-card" style="border-left-color:' + (TACTIC_COLORS[ins.tactic] || '#4f8ef7') + '"><div class="insight-tactic">' + ins.tactic + '</div><div class="insight-text">' + ins.text + '</div>' + (ins.days ? '<div class="insight-impact">~' + ins.days + ' days</div>' : '') + '</div>';
     }).join('');
   }
 
