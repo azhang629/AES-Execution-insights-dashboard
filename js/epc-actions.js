@@ -99,6 +99,10 @@
     return [];
   }
 
+  function lookupPredTask(sched, predId) {
+    return sched.taskById[predId] || sched.taskByCode[predId] || sched.taskByName[predId] || null;
+  }
+
   function comparePredecessors(diff, baseline, optimized) {
     var bTask = diff.b, oTask = diff.o;
     var bPreds = baseline.predByTaskId[bTask.task_id] || [];
@@ -107,7 +111,7 @@
     var bNames = {};
     for (var i = 0; i < bPreds.length; i++) {
       var p = bPreds[i];
-      var pt = baseline.taskById[p.pred_task_id] || baseline.taskByCode[p.pred_task_id];
+      var pt = lookupPredTask(baseline, p.pred_task_id);
       var name = pt ? pt.task_name : p.pred_task_id;
       if (name && !bNames[name]) bNames[name] = pt;
     }
@@ -115,7 +119,7 @@
     var oNames = {};
     for (var j = 0; j < oPreds.length; j++) {
       var op = oPreds[j];
-      var opt = optimized.taskById[op.pred_task_id] || optimized.taskByCode[op.pred_task_id];
+      var opt = lookupPredTask(optimized, op.pred_task_id);
       var oname = opt ? opt.task_name : op.pred_task_id;
       if (oname && !oNames[oname]) oNames[oname] = opt;
     }
