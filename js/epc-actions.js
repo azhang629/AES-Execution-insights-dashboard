@@ -361,12 +361,29 @@
       var hoDetails = handoffDiffs.slice(0, 8).map(function (d) {
         var bGap = d.logic.bDrivingLagDays !== null ? Math.round(d.logic.bDrivingLagDays) : null;
         var oGap = d.logic.oDrivingLagDays !== null ? Math.round(d.logic.oDrivingLagDays) : null;
+        var bRel = d.logic.bDrivingRelType || 'FS';
+        var oRel = d.logic.oDrivingRelType || 'FS';
+        var relChanged = bRel !== oRel;
+        var reason = '';
+        if (relChanged) {
+          reason = 'Relationship changed from ' + bRel + ' to ' + oRel;
+        } else if (oGap !== null && oGap < 0) {
+          reason = 'Negative lag (lead) applied — work starts before predecessor finishes';
+        } else if (bGap !== null && oGap !== null && oGap < bGap) {
+          reason = 'Lag reduced from ' + bGap + 'd to ' + oGap + 'd on ' + bRel + ' relationship';
+        } else {
+          reason = 'Gap compressed on ' + bRel + ' relationship';
+        }
         return {
           taskName: shortName(d.task_name),
           block: blockTag(d),
           predName: d.logic.drivingPredName ? shortName(d.logic.drivingPredName) : 'predecessor',
           bGap: bGap,
           oGap: oGap,
+          bRel: bRel,
+          oRel: oRel,
+          relChanged: relChanged,
+          reason: reason,
           saved: (bGap !== null && oGap !== null) ? Math.abs(bGap - oGap) : Math.abs(Math.round(d.logic.lagDelta / 24)),
         };
       });

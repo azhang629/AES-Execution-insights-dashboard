@@ -277,13 +277,17 @@
 
     if (lever.type === 'handoff' && lever.details) {
       return '<div class="epc-crew-table"><table>' +
-        '<thead><tr><th>Activity</th><th>Block</th><th>Predecessor</th><th>Base Gap</th><th>Opt Gap</th><th>Saved</th></tr></thead><tbody>' +
+        '<thead><tr><th>Activity</th><th>Block</th><th>Predecessor</th><th>Base Rel</th><th>Opt Rel</th><th>Base Gap</th><th>Opt Gap</th><th>Saved</th><th>Why</th></tr></thead><tbody>' +
         lever.details.map(function (d) {
+          var relStyle = d.relChanged ? ' style="color:var(--success);font-weight:600"' : '';
           return '<tr><td>' + d.taskName + '</td><td>' + (d.block || '\u2014') + '</td>' +
             '<td>' + d.predName + '</td>' +
+            '<td>' + d.bRel + '</td>' +
+            '<td' + relStyle + '>' + d.oRel + '</td>' +
             '<td>' + (d.bGap !== null ? d.bGap + 'd' : '\u2014') + '</td>' +
             '<td>' + (d.oGap !== null ? d.oGap + 'd' : '\u2014') + '</td>' +
-            '<td class="epc-shift-pos">\u2212' + d.saved + 'd</td></tr>';
+            '<td class="epc-shift-pos">\u2212' + d.saved + 'd</td>' +
+            '<td style="font-size:11px;color:var(--text-muted)">' + d.reason + '</td></tr>';
         }).join('') +
       '</tbody></table></div>';
     }

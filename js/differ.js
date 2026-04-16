@@ -48,7 +48,7 @@
         matchedCount++;
         var bLag = computeLagHr(bEntry.pred, bEntry.predTask, bTask);
         var oLag = computeLagHr(oEntry.pred, oEntry.predTask, oTask);
-        matchedPairs.push({ name: code, bLag: bLag, oLag: oLag });
+        matchedPairs.push({ name: code, bLag: bLag, oLag: oLag, bRelType: bEntry.pred.rel_type, oRelType: oEntry.pred.rel_type });
         if (bEntry.pred.pred_type !== 'PR_SS' && (oEntry.pred.pred_type === 'PR_SS' || (oLag < 0 && bLag >= 0))) newSS++;
         if (oLag < 0) hasNegLag = true;
       } else {
@@ -70,6 +70,7 @@
     var lagDelta = 0;
     var drivingPredName = null;
     var bDrivingLagDays = null, oDrivingLagDays = null;
+    var bDrivingRelType = null, oDrivingRelType = null;
 
     if (matchedPairs.length > 0) {
       var bDriver = matchedPairs.slice().sort(function (a, b) { return a.bLag - b.bLag; })[0];
@@ -81,11 +82,15 @@
         lagDelta = bDriver.oLag - bDriver.bLag;
         bDrivingLagDays = bDriver.bLag / 24;
         oDrivingLagDays = bDriver.oLag / 24;
+        bDrivingRelType = bDriver.bRelType;
+        oDrivingRelType = bDriver.oRelType;
       } else {
         drivingPredName = bDriver.name;
         lagDelta = bDriver.oLag - bDriver.bLag;
         bDrivingLagDays = bDriver.bLag / 24;
         oDrivingLagDays = bDriver.oLag / 24;
+        bDrivingRelType = bDriver.bRelType;
+        oDrivingRelType = bDriver.oRelType;
       }
     }
 
@@ -96,7 +101,9 @@
       bDrivingLagDays: bDrivingLagDays,
       oDrivingLagDays: oDrivingLagDays,
       drivingPredName: drivingPredName,
-      sameDriving: sameDriving
+      sameDriving: sameDriving,
+      bDrivingRelType: bDrivingRelType,
+      oDrivingRelType: oDrivingRelType
     };
   }
 
