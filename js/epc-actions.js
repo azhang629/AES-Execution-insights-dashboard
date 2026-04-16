@@ -289,12 +289,12 @@
       });
     }
 
-    // 3. Parallel Execution — group overlapping workfronts by block
+    // 3. Parallel Execution — group ALL blocks by concurrency, flag if new SS exists
     var overlapDiffs = preMC.filter(function (d) {
       return d.logic && d.logic.newSS > 0 && Math.abs(d.finishVar) > 1;
-    }).sort(function (a, b) { return (a.oStart || 0) - (b.oStart || 0); });
+    });
     if (overlapDiffs.length > 0) {
-      // Build concurrent block groups for baseline and optimized
+      var allWithDates = preMC.filter(function (d) { return d.bStart && d.bEnd && d.oStart && d.oEnd; });
       function findConcurrent(tasks, startKey, endKey) {
         var sorted = tasks.filter(function (d) { return d[startKey] && d[endKey]; })
           .sort(function (a, b) { return a[startKey] - b[startKey]; });
@@ -313,8 +313,8 @@
         }
         return groups;
       }
-      var bGroups = findConcurrent(overlapDiffs, 'bStart', 'bEnd');
-      var oGroups = findConcurrent(overlapDiffs, 'oStart', 'oEnd');
+      var bGroups = findConcurrent(allWithDates, 'bStart', 'bEnd');
+      var oGroups = findConcurrent(allWithDates, 'oStart', 'oEnd');
       var bParCount = bGroups.filter(function (g) { return g.blocks.length > 1; }).length;
       var oParCount = oGroups.filter(function (g) { return g.blocks.length > 1; }).length;
 
