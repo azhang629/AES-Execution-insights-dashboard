@@ -267,36 +267,6 @@
 
     </div><!-- /tab-content -->
 
-    <!-- Agent Panel -->
-    <div class="agent-panel">
-      <div class="agent-header">
-        <div class="agent-dot"></div>
-        <div class="agent-title">Schedule Analyst</div>
-        <div class="agent-hint">AI-powered Q&amp;A</div>
-      </div>
-      <div class="agent-messages" id="agent-messages">
-        <div class="msg-welcome">
-          <strong>Schedule Analyst ready</strong>
-          Ask me anything about the schedule changes. I'll explain what drove the gains and what your team needs to do differently.
-        </div>
-      </div>
-      <div class="agent-suggestions" id="agent-suggestions">
-        <div class="suggestion-chip" onclick="ATT.askAgent('What drove the most schedule gain?')">What drove the most gain?</div>
-        <div class="suggestion-chip" onclick="ATT.askAgent('What changed on the critical path?')">Critical path changes?</div>
-        <div class="suggestion-chip" onclick="ATT.askAgent('Which block improved the most?')">Best block?</div>
-        <div class="suggestion-chip" onclick="ATT.askAgent('What do field teams need to do differently?')">Field team actions?</div>
-        <div class="suggestion-chip" onclick="ATT.askAgent('What are the mechanical completion dates?')">MC dates?</div>
-        <div class="suggestion-chip" onclick="ATT.askAgent('Which crews peak at different times?')">Crew peak timing?</div>
-        <div class="suggestion-chip" onclick="ATT.askAgent('Where is the biggest crew intensity change?')">Crew intensity?</div>
-        <div class="suggestion-chip" onclick="ATT.askAgent('What are the top resequencing changes?')">Resequencing?</div>
-        <div class="suggestion-chip" onclick="ATT.askAgent('How did float change across the project?')">Float changes?</div>
-        <div class="suggestion-chip" onclick="ATT.askAgent('What are the constraint relief changes?')">Constraint relief?</div>
-      </div>
-      <div class="agent-input-row">
-        <input class="agent-input" id="agent-input" placeholder="Ask about the schedule&hellip;" onkeydown="if(event.key==='Enter')ATT.sendAgent()">
-        <button class="btn-send" onclick="ATT.sendAgent()">&rarr;</button>
-      </div>
-    </div>
   </div><!-- /app-body -->
 </div><!-- /app -->
 
@@ -315,7 +285,6 @@
 <script src="js/requirements.js"></script>
 <script src="js/charts.js"></script>
 <script src="js/dashboard.js"></script>
-<script src="js/agent.js"></script>
 <script src="js/app.js"></script>
 
 </body>
