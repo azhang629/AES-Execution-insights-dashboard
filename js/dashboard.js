@@ -712,20 +712,21 @@
       }
     }
 
+    var HRS_PER_DAY = 8;
     var bAUC = 0, oAUC = 0;
     for (var ai = 0; ai < bVals.length; ai++) bAUC += bVals[ai];
     for (var aj = 0; aj < oVals.length; aj++) oAUC += oVals[aj];
-    bAUC = Math.round(bAUC);
-    oAUC = Math.round(oAUC);
+    bAUC = Math.round(bAUC * HRS_PER_DAY);
+    oAUC = Math.round(oAUC * HRS_PER_DAY);
     var aucDiff = oAUC - bAUC;
     var aucPct = bAUC > 0 ? ((aucDiff / bAUC) * 100).toFixed(1) : '0';
 
     var aucEl = document.getElementById('crew-auc-stats');
     if (aucEl) {
       aucEl.innerHTML =
-        '<div class="stat-card accent"><div class="stat-label">Baseline Total Worker-Days</div><div class="stat-value">' + bAUC.toLocaleString() + '</div><div class="stat-detail">Area under the baseline crew curve</div></div>' +
-        '<div class="stat-card success"><div class="stat-label">Optimized Total Worker-Days</div><div class="stat-value">' + oAUC.toLocaleString() + '</div><div class="stat-detail">Area under the optimized crew curve' +
-          (aucDiff !== 0 ? ' (' + (aucDiff > 0 ? '+' : '') + aucDiff.toLocaleString() + ', ' + (aucDiff > 0 ? '+' : '') + aucPct + '%)' : '') +
+        '<div class="stat-card accent"><div class="stat-label">Baseline Man-Hours</div><div class="stat-value">' + bAUC.toLocaleString() + '</div><div class="stat-detail">Total labor hours (crew \u00D7 8 hrs/day)</div></div>' +
+        '<div class="stat-card success"><div class="stat-label">Optimized Man-Hours</div><div class="stat-value">' + oAUC.toLocaleString() + '</div><div class="stat-detail">Total labor hours' +
+          (aucDiff !== 0 ? ' (' + (aucDiff > 0 ? '+' : '') + aucDiff.toLocaleString() + ' hrs, ' + (aucDiff > 0 ? '+' : '') + aucPct + '%)' : '') +
         '</div></div>';
     }
 
