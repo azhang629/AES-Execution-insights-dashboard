@@ -11,8 +11,9 @@
       if (/module/i.test(t)) return 'Module Install';
       if (/dc.*ug|trenching|backfill/i.test(t)) return 'DC Collection UG';
       if (/dc|string|array|wiring/i.test(t)) return 'DC Collection AG';
-      if (/ac/i.test(t)) return 'AC Collection';
-      if (/electrical|inverter/i.test(t)) return 'Inverter / Electrical';
+      if (/\bac\b/i.test(t)) return 'AC Collection';
+      if (/inverter/i.test(t)) return 'Inverter';
+      if (/electrical|fiber|scada|met\s*station/i.test(t)) return 'Electrical';
       if (/commission/i.test(t)) return 'Commissioning';
       if (/civil|foundation|grading/i.test(t)) return 'Civil / Foundation';
       if (/substation|hv/i.test(t)) return 'Substation';
@@ -25,8 +26,9 @@
     if (/modules install/.test(n)) return 'Module Install';
     if (/dc trench|dc backfill|dc feeders|dc ug/.test(n)) return 'DC Collection UG';
     if (/harness cable|module wire|module connect|string \(array|bla\+|homerun|cab system|disconnect box/.test(n)) return 'DC Collection AG';
-    if (/ac trench|ac ag cable|ac ug|ac ag line pile/.test(n)) return 'AC Collection';
-    if (/inverter|fiber optic|scada/.test(n)) return 'Inverter / Electrical';
+    if (/\bac trench|\bac ag cable|\bac ug|\bac ag line pile|\bac collection/.test(n)) return 'AC Collection';
+    if (/inverter(?! pad)/.test(n) || /inverter pad/.test(n)) return 'Inverter';
+    if (/fiber optic|scada|met\s*station|electrical(?!.*inverter)/.test(n)) return 'Electrical';
     if (/cold commission|pre-functional/.test(n)) return 'Commissioning';
     if (/grading|stump|grubbing|interior road|basin|swpp|erosion|pre-seed|stabilize/.test(n)) return 'Civil / Foundation';
     if (/substation|gsu|transformer/.test(n)) return 'Substation';
