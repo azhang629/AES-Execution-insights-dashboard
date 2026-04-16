@@ -241,16 +241,27 @@
       }).join('');
     }
 
-    if (lever.type === 'parallel' && lever.details) {
-      return '<div class="lever-detail-list">' +
-        lever.details.map(function (d) {
-          return '<div class="lever-detail-row">' +
-            '<span class="lever-task-label">' + d.taskName + (d.block ? ' (' + d.block + ')' : '') + '</span>' +
-            ' \u2014 run parallel with <em>' + d.predName + '</em>, finish ' + d.finishShift + 'd earlier' +
-            ' <span style="color:var(--text-dim)">(' + d.bEnd + ' \u2192 ' + d.oEnd + ')</span>' +
-          '</div>';
-        }).join('') +
-      '</div>';
+    if (lever.type === 'parallel') {
+      function renderParGroups(groups, label) {
+        if (!groups || !groups.length) return '<div style="color:var(--text-dim);font-size:11px">No concurrent blocks</div>';
+        return '<div class="seq-track" style="margin-bottom:6px"><span class="seq-track-label" style="min-width:70px">' + label + '</span>' +
+          '<div class="seq-pills" style="flex-wrap:wrap;gap:4px">' +
+          groups.map(function (g) {
+            var cls = g.blocks.length > 1 ? 'seq-earlier' : 'seq-same';
+            return '<span class="seq-pill ' + cls + '" style="padding:3px 8px;font-size:11px">' +
+              g.blocks.join(' + ') +
+            '</span>';
+          }).join('<span style="color:var(--text-dim);margin:0 2px">\u2192</span>') +
+          '</div></div>';
+      }
+      return '<div class="seq-legend" style="margin-bottom:8px">' +
+          '<span class="seq-pill seq-same" style="padding:2px 8px;font-size:10px">Sequential (1 block)</span>' +
+          '<span class="seq-pill seq-earlier" style="padding:2px 8px;font-size:10px">Parallel (2+ blocks)</span>' +
+        '</div>' +
+        '<div class="lever-reseq-visual">' +
+          renderParGroups(lever.baselineGroups, 'Baseline') +
+          renderParGroups(lever.optimizedGroups, 'Optimized') +
+        '</div>';
     }
 
     if (lever.type === 'duration' && lever.details) {

@@ -289,28 +289,43 @@
       });
     }
 
-    // 3. Parallel Execution
+    // 3. Parallel Execution — group overlapping workfronts by block
     var overlapDiffs = preMC.filter(function (d) {
       return d.logic && d.logic.newSS > 0 && Math.abs(d.finishVar) > 1;
-    }).sort(function (a, b) { return a.finishVar - b.finishVar; });
+    }).sort(function (a, b) { return (a.oStart || 0) - (b.oStart || 0); });
     if (overlapDiffs.length > 0) {
-      var parDetails = overlapDiffs.slice(0, 8).map(function (d) {
-        return {
-          taskName: shortName(d.task_name),
-          block: blockTag(d),
-          predName: d.logic.drivingPredName ? shortName(d.logic.drivingPredName) : 'predecessor',
-          finishShift: Math.abs(d.finishVar).toFixed(0),
-          bEnd: fmtDate(d.bEnd),
-          oEnd: fmtDate(d.oEnd),
-        };
-      });
-      var parLabel = crewName + ' runs ' + overlapDiffs.length + ' activit' + (overlapDiffs.length === 1 ? 'y' : 'ies') + ' in parallel with predecessors';
-      var parSummary = 'Finish-to-Start relationships changed to Start-to-Start — ' + crewName + ' work begins before the predecessor finishes';
+      // Build concurrent block groups for baseline and optimized
+      function findConcurrent(tasks, startKey, endKey) {
+        var sorted = tasks.filter(function (d) { return d[startKey] && d[endKey]; })
+          .sort(function (a, b) { return a[startKey] - b[startKey]; });
+        var groups = [];
+        var cur = null;
+        for (var ci = 0; ci < sorted.length; ci++) {
+          var t = sorted[ci];
+          var blk = blockTag(t) || shortName(t.task_name);
+          if (!cur || t[startKey] >= cur.end) {
+            cur = { blocks: [blk], start: t[startKey], end: t[endKey] };
+            groups.push(cur);
+          } else {
+            if (cur.blocks.indexOf(blk) < 0) cur.blocks.push(blk);
+            if (t[endKey] > cur.end) cur.end = t[endKey];
+          }
+        }
+        return groups;
+      }
+      var bGroups = findConcurrent(overlapDiffs, 'bStart', 'bEnd');
+      var oGroups = findConcurrent(overlapDiffs, 'oStart', 'oEnd');
+      var bParCount = bGroups.filter(function (g) { return g.blocks.length > 1; }).length;
+      var oParCount = oGroups.filter(function (g) { return g.blocks.length > 1; }).length;
+
+      var parLabel = crewName + ' increases parallel workfronts from ' + bParCount + ' to ' + oParCount + ' concurrent groups';
+      var parSummary = 'Optimized schedule overlaps more blocks simultaneously, reducing total duration';
       levers.push({
         type: 'parallel',
         label: parLabel,
         summary: parSummary,
-        details: parDetails,
+        baselineGroups: bGroups,
+        optimizedGroups: oGroups,
         count: overlapDiffs.length,
       });
     }
