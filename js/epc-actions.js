@@ -108,23 +108,22 @@
     var preMC = crewDiffs.filter(function (d) { return isPreMC(d, mcCutoff) && d.oStart && d.bStart; });
     if (preMC.length === 0) return levers;
 
-    // 1. Workfront Resequencing
-    var reseqDiffs = preMC.filter(function (d) {
-      return d.startVar < -5 && Math.abs(d.durVar) < 1 && Math.abs(d.laborVar) < 0.5 && d.blockNum;
-    });
-    if (reseqDiffs.length >= 2) {
-      var basePath = getBlockProgression(reseqDiffs, 'bStart');
-      var optPath = getBlockProgression(reseqDiffs, 'oStart');
+    // 1. Workfront Resequencing — always include with full block sequence
+    var withBlock = preMC.filter(function (d) { return d.blockNum || d.blockNotation; });
+    if (withBlock.length > 0) {
+      var basePath = getBlockProgression(withBlock, 'bStart');
+      var optPath = getBlockProgression(withBlock, 'oStart');
       var bStr = basePath.map(function (p) { return p.block; }).join(' \u2192 ');
       var oStr = optPath.map(function (p) { return p.block; }).join(' \u2192 ');
+      var changed = bStr !== oStr;
       levers.push({
         type: 'resequencing',
         label: 'Workfront Resequencing',
-        summary: reseqDiffs.length + ' activities resequenced \u2014 installation order changed',
+        summary: changed ? 'Installation order changed between scenarios' : 'Same installation order in both scenarios',
         baselinePath: bStr,
         optimizedPath: oStr,
-        changed: bStr !== oStr,
-        count: reseqDiffs.length,
+        changed: changed,
+        count: withBlock.length,
       });
     }
 
