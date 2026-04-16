@@ -4,6 +4,13 @@
   var parseDate = ATT.parseDate;
 
   function classifyCommodity(name, trade) {
+    var n = (name || '').toLowerCase();
+
+    if (/dc trench|dc backfill|dc feeders|dc ug/.test(n)) return 'DC Collection UG';
+    if (/harness cable|module wire|module connect|string \(array|bla\+|homerun|cab system|disconnect box/.test(n)) return 'DC Collection AG';
+    if (/\bac trench|\bac ag cable|\bac ug|\bac ag line pile|\bac collection/.test(n)) return 'AC Collection';
+    if (/inverter/.test(n)) return 'Inverter';
+
     if (trade) {
       var t = trade.toLowerCase();
       if (/pil/i.test(t)) return 'Piling';
@@ -13,22 +20,29 @@
       if (/dc|string|array|wiring/i.test(t)) return 'DC Collection AG';
       if (/\bac\b/i.test(t)) return 'AC Collection';
       if (/inverter/i.test(t)) return 'Inverter';
-      if (/electrical|fiber|scada|met\s*station/i.test(t)) return 'Electrical';
       if (/commission/i.test(t)) return 'Commissioning';
       if (/civil|foundation|grading/i.test(t)) return 'Civil / Foundation';
       if (/substation|hv/i.test(t)) return 'Substation';
       if (/procurement|material|deliver/i.test(t)) return 'Procurement';
       if (/mileston|mobiliz/i.test(t)) return 'Milestones';
+      if (/fiber|scada|met\s*station/i.test(t)) return 'Electrical';
+      if (/electrical/i.test(t)) {
+        if (/fiber optic|scada|met\s*station/.test(n)) return 'Electrical';
+        if (/pile install|pile survey|pile remed/.test(n)) return 'Piling';
+        if (/tracker install/.test(n)) return 'Tracker Install';
+        if (/modules install/.test(n)) return 'Module Install';
+        if (/cold commission|pre-functional/.test(n)) return 'Commissioning';
+        if (/substation|gsu|transformer/.test(n)) return 'Substation';
+        if (/grading|stump|grubbing|interior road/.test(n)) return 'Civil / Foundation';
+        if (/mobilize|milestone/.test(n)) return 'Milestones';
+        return 'Electrical';
+      }
     }
-    var n = (name || '').toLowerCase();
+
     if (/pile install|pile survey|pile remed/.test(n)) return 'Piling';
     if (/tracker install/.test(n)) return 'Tracker Install';
     if (/modules install/.test(n)) return 'Module Install';
-    if (/dc trench|dc backfill|dc feeders|dc ug/.test(n)) return 'DC Collection UG';
-    if (/harness cable|module wire|module connect|string \(array|bla\+|homerun|cab system|disconnect box/.test(n)) return 'DC Collection AG';
-    if (/\bac trench|\bac ag cable|\bac ug|\bac ag line pile|\bac collection/.test(n)) return 'AC Collection';
-    if (/inverter(?! pad)/.test(n) || /inverter pad/.test(n)) return 'Inverter';
-    if (/fiber optic|scada|met\s*station|electrical(?!.*inverter)/.test(n)) return 'Electrical';
+    if (/fiber optic|scada|met\s*station/.test(n)) return 'Electrical';
     if (/cold commission|pre-functional/.test(n)) return 'Commissioning';
     if (/grading|stump|grubbing|interior road|basin|swpp|erosion|pre-seed|stabilize/.test(n)) return 'Civil / Foundation';
     if (/substation|gsu|transformer/.test(n)) return 'Substation';
