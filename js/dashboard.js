@@ -303,6 +303,12 @@
       }
     }
 
+    var showB = chosenScen === 'both' || chosenScen === 'baseline';
+    var showO = chosenScen === 'both' || chosenScen === 'optimized';
+    rows = rows.filter(function (r) {
+      return (showB && r.baseline) || (showO && r.optimized);
+    });
+
     var titleEl = document.getElementById('wf-chart-title');
     var subEl = document.getElementById('wf-chart-sub');
     if (titleEl) titleEl.textContent = chosenComm === '__all__' ? 'All Trades \u2014 Block Progression' : chosenComm + ' \u2014 Block Progression';
@@ -311,7 +317,7 @@
     var yLabels = rows.map(function (r) { return r.label; });
     var traces = [];
 
-    if (chosenScen === 'both' || chosenScen === 'baseline') {
+    if (showB) {
       traces.push({
         type: 'scatter', mode: 'lines', name: 'Baseline',
         x: [], y: [], line: { color: 'rgba(79,142,247,0.9)', width: 14 },
@@ -331,7 +337,7 @@
       }
     }
 
-    if (chosenScen === 'both' || chosenScen === 'optimized') {
+    if (showO) {
       traces.push({
         type: 'scatter', mode: 'lines', name: 'Optimized',
         x: [], y: [], line: { color: 'rgba(34,211,168,0.9)', width: 8 },
@@ -357,6 +363,7 @@
     }
     var leftMargin = Math.min(400, Math.max(100, maxLabelLen * 7 + 20));
     var rowHeight = rows.length <= 15 ? 36 : rows.length <= 40 ? 28 : 22;
+    var chartH = Math.max(250, Math.min(rows.length * rowHeight + 80, 1200));
 
     plotDark('chart-workfront', traces, {
       xaxis: { type: 'date', color: '#8899bb', gridcolor: '#2a3050', automargin: true },
@@ -365,7 +372,7 @@
         color: '#e2e8f0', tickfont: { size: rows.length > 40 ? 9 : 10 }, automargin: true,
       },
       margin: { l: leftMargin, r: 30, t: 10, b: 50 },
-      height: Math.max(350, rows.length * rowHeight + 80),
+      height: chartH,
       hovermode: 'closest',
       legend: { font: { color: '#8899bb' }, orientation: 'h', y: 1.05 },
     });
