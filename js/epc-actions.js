@@ -384,7 +384,11 @@
         };
       });
       var avgHoSaved = Math.round(hoDetails.reduce(function (s, h) { return s + h.saved; }, 0) / hoDetails.length);
-      var hoLabel = 'Tighten handoffs for ' + crewName + ' across ' + handoffDiffs.length + ' transition' + (handoffDiffs.length !== 1 ? 's' : '') + ' — cut ' + avgHoSaved + ' days of average idle time between the preceding trade finishing and ' + crewName + ' starting';
+      var fsToSsCount = hoDetails.filter(function (h) { return h.relChanged && h.bRel === 'FS' && h.oRel === 'SS'; }).length;
+      var hoLabel = 'Tighten handoffs for ' + crewName + ' across ' + handoffDiffs.length + ' transition' + (handoffDiffs.length !== 1 ? 's' : '') + ' — cut ' + avgHoSaved + ' days of average idle time';
+      if (fsToSsCount > 0) {
+        hoLabel += '. ' + fsToSsCount + ' of ' + hoDetails.length + ' changed from FS to SS (activity starts when predecessor starts, not when it finishes)';
+      }
       levers.push({
         type: 'handoff',
         shortLabel: 'Handoff Compression',
