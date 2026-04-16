@@ -4,7 +4,7 @@
   var TACTICS = ATT.TACTICS;
   var fmtDate = ATT.fmtDate;
 
-  function shortName(name) { return (name || '').split(' - ')[0].replace(/_/g, ' ').trim(); }
+  function shortName(name) { return (name || '').replace(/_/g, ' ').trim(); }
   function blockTag(d) { return d.blockNotation || (d.blockNum ? 'Block ' + d.blockNum : ''); }
 
   var POST_MC_RE = /\beor\b|energiz|hot.commiss|substantial.complet|final.punch|closeout|demob|as.built|warranty|turnover|handover/i;
