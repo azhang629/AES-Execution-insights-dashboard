@@ -67,7 +67,7 @@
       xaxis: { title: 'Schedule Days Recovered', color: '#8899bb', gridcolor: '#2a3050' },
       yaxis: { autorange: 'reversed', color: '#e2e8f0', tickfont: { size: 11 }, automargin: true },
       margin: { l: 10, r: 100, t: 10, b: 40 },
-      height: Math.max(400, sortedTactics.length * 40 + 60),
+      height: Math.max(300, sortedTactics.length * 36 + 50),
     });
 
     // Commodity donut
@@ -89,7 +89,7 @@
     }], {
       showlegend: false,
       margin: { l: 20, r: 20, t: 20, b: 20 },
-      height: 400,
+      height: 300,
     });
 
     // Insights
