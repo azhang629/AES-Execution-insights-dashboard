@@ -246,7 +246,7 @@
         if (bIdx >= 0 && bIdx !== i) movedBlocks.push(p.block);
       });
       var reseqLabel = changed
-        ? 'Redirect ' + crewName + ' to follow a new block installation order — ' + movedBlocks.length + ' block' + (movedBlocks.length !== 1 ? 's move' : ' moves') + ' position (e.g. ' + movedBlocks.slice(0, 3).join(', ') + (movedBlocks.length > 3 ? ' and ' + (movedBlocks.length - 3) + ' more' : '') + '). Coordinate with field supervisors to update crew mobilization sequence.'
+        ? 'Redirect ' + crewName + ' to follow a new block installation order — ' + movedBlocks.length + ' block' + (movedBlocks.length !== 1 ? 's move' : ' moves') + ' position (e.g. ' + movedBlocks.slice(0, 3).join(', ') + (movedBlocks.length > 3 ? ' and ' + (movedBlocks.length - 3) + ' more' : '') + ')'
         : crewName + ' maintains the same block installation order — no crew redirection needed.';
       levers.push({
         type: 'resequencing',
@@ -275,7 +275,7 @@
           predComparison: comparePredecessors(d, R.baseline, R.optimized),
         };
       });
-      var epLabel = 'Update the driving logic for ' + pathDiffs.length + ' ' + crewName + ' activit' + (pathDiffs.length === 1 ? 'y' : 'ies') + ' — predecessors have been added, removed, or swapped. Verify that upstream trades are aligned to the new trigger points before ' + crewName + ' mobilizes.';
+      var epLabel = 'Update the driving logic for ' + pathDiffs.length + ' ' + crewName + ' activit' + (pathDiffs.length === 1 ? 'y' : 'ies') + ' — predecessors have been added, removed, or swapped';
       levers.push({
         type: 'execution_path',
         shortLabel: 'Execution Path',
@@ -314,7 +314,7 @@
       var bParCount = bGroups.filter(function (g) { return g.blocks.length > 1; }).length;
       var oParCount = oGroups.filter(function (g) { return g.blocks.length > 1; }).length;
 
-      var parLabel = 'Deploy ' + crewName + ' across multiple blocks simultaneously — increase concurrent workfronts from ' + bParCount + ' to ' + oParCount + ' groups. Ensure sufficient crew count, tools, and material are staged at each active block.';
+      var parLabel = 'Deploy ' + crewName + ' across multiple blocks simultaneously — increase concurrent workfronts from ' + bParCount + ' to ' + oParCount + ' groups';
       levers.push({
         type: 'parallel',
         shortLabel: 'Parallel Execution',
@@ -342,7 +342,7 @@
         };
       });
       var avgSaved = Math.round(durDiffs.reduce(function (s, d) { return s + Math.abs(d.durVar); }, 0) / durDiffs.length);
-      var durLabel = 'Add crew to ' + durDiffs.length + ' ' + crewName + ' activit' + (durDiffs.length === 1 ? 'y' : 'ies') + ' to compress durations — saves an average of ' + avgSaved + ' days per activity. Confirm subcontractor can supply the additional headcount on the required dates.';
+      var durLabel = 'Add crew to ' + durDiffs.length + ' ' + crewName + ' activit' + (durDiffs.length === 1 ? 'y' : 'ies') + ' to compress durations — saves an average of ' + avgSaved + ' days per activity';
       levers.push({
         type: 'duration',
         shortLabel: 'Duration Compression',
@@ -370,7 +370,7 @@
         };
       });
       var avgHoSaved = Math.round(hoDetails.reduce(function (s, h) { return s + h.saved; }, 0) / hoDetails.length);
-      var hoLabel = 'Tighten handoffs for ' + crewName + ' across ' + handoffDiffs.length + ' transition' + (handoffDiffs.length !== 1 ? 's' : '') + ' — cut ' + avgHoSaved + ' days of average idle time between the preceding trade finishing and ' + crewName + ' starting. Align look-ahead schedules so crews are ready to roll in immediately.';
+      var hoLabel = 'Tighten handoffs for ' + crewName + ' across ' + handoffDiffs.length + ' transition' + (handoffDiffs.length !== 1 ? 's' : '') + ' — cut ' + avgHoSaved + ' days of average idle time between the preceding trade finishing and ' + crewName + ' starting';
       levers.push({
         type: 'handoff',
         shortLabel: 'Handoff Compression',
