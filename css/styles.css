@@ -416,6 +416,9 @@ body {
 }
 
 /* ── Lever: Resequencing visual ── */
+.seq-legend {
+  display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap;
+}
 .lever-reseq-visual { margin-bottom: 6px; }
 .seq-track {
   display: flex; align-items: center; gap: 8px; margin-bottom: 8px;

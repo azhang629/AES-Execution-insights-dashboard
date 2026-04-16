@@ -215,7 +215,12 @@
         tableRows += '<tr><td>' + block + '</td><td>' + bPos + '</td><td>' + oPos + '</td><td><span class="' + changeCls + '">' + changeTxt + '</span></td></tr>';
       });
 
-      return '<div class="lever-reseq-visual">' +
+      return '<div class="seq-legend">' +
+        '<span class="seq-pill seq-same" style="padding:2px 8px;font-size:10px">Same position</span>' +
+        '<span class="seq-pill seq-earlier" style="padding:2px 8px;font-size:10px">Moved earlier</span>' +
+        '<span class="seq-pill seq-later" style="padding:2px 8px;font-size:10px">Moved later</span>' +
+      '</div>' +
+      '<div class="lever-reseq-visual">' +
         '<div class="seq-track"><span class="seq-track-label">Baseline</span><div class="seq-pills">' + bPills + '</div></div>' +
         '<div class="seq-track"><span class="seq-track-label">Optimized</span><div class="seq-pills">' + oPills + '</div></div>' +
       '</div>' +
