@@ -282,8 +282,8 @@
           var bGapStr = d.bGap !== null ? d.bGap + 'd' : 'n/a';
           var oGapStr = d.oGap !== null ? d.oGap + 'd' : 'n/a';
           var relNote = d.relChanged
-            ? 'relationship changed from ' + d.bRel + ' (Finish-to-Start) to ' + d.oRel + (d.oRel === 'SS' ? ' (Start-to-Start)' : d.oRel === 'FF' ? ' (Finish-to-Finish)' : d.oRel === 'SF' ? ' (Start-to-Finish)' : '')
-            : d.bRel + ' relationship maintained' + (d.bRel === 'FS' ? ' (Finish-to-Start)' : d.bRel === 'SS' ? ' (Start-to-Start)' : '');
+            ? 'relationship changed from ' + d.bRel + ' to ' + d.oRel
+            : d.bRel + ' relationship maintained';
           var why = 'Gap reduced by ' + d.saved + 'd — ' + relNote + '. Baseline gap: ' + bGapStr + ' \u2192 optimized gap: ' + oGapStr;
           return '<tr><td>' + d.taskName + '</td>' +
             '<td>' + d.predName + '</td>' +
