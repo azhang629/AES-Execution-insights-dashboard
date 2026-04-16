@@ -36,6 +36,22 @@
     return (s || '').toLowerCase().replace(/_/g, ' ').replace(/\s+/g, ' ').trim();
   }
 
+  function formatCrewForLabel(name) {
+    var words = (name || '').split(/\s+/);
+    var result = [];
+    for (var i = 0; i < words.length; i++) {
+      var w = words[i];
+      if (w.toUpperCase() === 'EPC') {
+        result.push('EPC');
+      } else if (i > 0 && words[i - 1].toUpperCase() === 'EPC') {
+        result.push(w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
+      } else {
+        result.push(w.toLowerCase());
+      }
+    }
+    return "'" + result.join(' ') + "'";
+  }
+
   function matchCrewToDiffs(crewName, diffs) {
     var rawCN = shortName(crewName);
     if (!rawCN) return [];
@@ -230,6 +246,7 @@
     var levers = [];
     var preMC = crewDiffs.filter(function (d) { return isPreMC(d, mcCutoff) && d.oStart && d.bStart; });
     if (preMC.length === 0) return levers;
+    var fCrew = formatCrewForLabel(crewName);
 
     // 1. Workfront Resequencing — always include with full block sequence
     var withBlock = preMC.filter(function (d) { return d.blockNum || d.blockNotation; });
@@ -246,8 +263,8 @@
         if (bIdx >= 0 && bIdx !== i) movedBlocks.push(p.block);
       });
       var reseqLabel = changed
-        ? 'Redirect ' + crewName + ' to follow a new block installation order — ' + movedBlocks.length + ' block' + (movedBlocks.length !== 1 ? 's move' : ' moves') + ' position (e.g. ' + movedBlocks.slice(0, 3).join(', ') + (movedBlocks.length > 3 ? ' and ' + (movedBlocks.length - 3) + ' more' : '') + ')'
-        : crewName + ' maintains the same block installation order — no crew redirection needed.';
+        ? 'Redirect ' + fCrew + ' to follow a new block installation order — ' + movedBlocks.length + ' block' + (movedBlocks.length !== 1 ? 's move' : ' moves') + ' position (e.g. ' + movedBlocks.slice(0, 3).join(', ') + (movedBlocks.length > 3 ? ' and ' + (movedBlocks.length - 3) + ' more' : '') + ')'
+        : fCrew + ' maintains the same block installation order — no crew redirection needed.';
       levers.push({
         type: 'resequencing',
         shortLabel: 'Workfront Resequencing',
@@ -275,7 +292,7 @@
           predComparison: comparePredecessors(d, R.baseline, R.optimized),
         };
       });
-      var epLabel = 'Update the driving logic for ' + pathDiffs.length + ' ' + crewName + ' activit' + (pathDiffs.length === 1 ? 'y' : 'ies') + ' — predecessors have been added, removed, or swapped';
+      var epLabel = 'Update the driving logic for ' + pathDiffs.length + ' ' + fCrew + ' activit' + (pathDiffs.length === 1 ? 'y' : 'ies') + ' — predecessors have been added, removed, or swapped (often a result of workfront resequencing or idle time reduction changes)';
       levers.push({
         type: 'execution_path',
         shortLabel: 'Execution Path',
@@ -285,13 +302,51 @@
       });
     }
 
-    // 3. Parallel Execution — group ALL blocks by concurrency, flag if new SS exists
+    // 3. Parallel Execution — sweep-line block concurrency + group detail
     var overlapDiffs = preMC.filter(function (d) {
       return d.logic && d.logic.newSS > 0 && Math.abs(d.finishVar) > 1;
     });
     if (overlapDiffs.length > 0) {
       var allWithDates = preMC.filter(function (d) { return d.bStart && d.bEnd && d.oStart && d.oEnd; });
-      function findConcurrent(tasks, startKey, endKey) {
+
+      function blockConcurrency(tasks, startKey, endKey) {
+        var blockSpans = {};
+        for (var bi = 0; bi < tasks.length; bi++) {
+          var t = tasks[bi];
+          var blk = blockTag(t);
+          if (!blk || !t[startKey] || !t[endKey]) continue;
+          var s = t[startKey].getTime(), e = t[endKey].getTime();
+          if (!blockSpans[blk]) { blockSpans[blk] = { start: s, end: e }; }
+          else {
+            if (s < blockSpans[blk].start) blockSpans[blk].start = s;
+            if (e > blockSpans[blk].end) blockSpans[blk].end = e;
+          }
+        }
+        var events = [];
+        var blocks = Object.keys(blockSpans);
+        for (var ej = 0; ej < blocks.length; ej++) {
+          events.push({ time: blockSpans[blocks[ej]].start, delta: 1 });
+          events.push({ time: blockSpans[blocks[ej]].end + 1, delta: -1 });
+        }
+        events.sort(function (a, b) { return a.time - b.time || b.delta - a.delta; });
+        var cur = 0, maxConc = 0;
+        for (var ek = 0; ek < events.length; ek++) {
+          cur += events[ek].delta;
+          if (cur > maxConc) maxConc = cur;
+        }
+        var overlapping = 0;
+        for (var m = 0; m < blocks.length; m++) {
+          var span = blockSpans[blocks[m]];
+          for (var n = 0; n < blocks.length; n++) {
+            if (m === n) continue;
+            var other = blockSpans[blocks[n]];
+            if (span.start < other.end && other.start < span.end) { overlapping++; break; }
+          }
+        }
+        return { maxConcurrent: maxConc, totalBlocks: blocks.length, overlappingBlocks: overlapping };
+      }
+
+      function findConcurrentGroups(tasks, startKey, endKey) {
         var sorted = tasks.filter(function (d) { return d[startKey] && d[endKey]; })
           .sort(function (a, b) { return a[startKey] - b[startKey]; });
         var groups = [];
@@ -309,19 +364,24 @@
         }
         return groups;
       }
-      var bGroups = findConcurrent(allWithDates, 'bStart', 'bEnd');
-      var oGroups = findConcurrent(allWithDates, 'oStart', 'oEnd');
-      var bMaxPar = 0, oMaxPar = 0;
-      bGroups.forEach(function (g) { if (g.blocks.length > bMaxPar) bMaxPar = g.blocks.length; });
-      oGroups.forEach(function (g) { if (g.blocks.length > oMaxPar) oMaxPar = g.blocks.length; });
 
-      var parLabel = 'Deploy ' + crewName + ' across multiple blocks simultaneously — up to ' + oMaxPar + ' blocks running in parallel vs ' + bMaxPar + ' in baseline';
+      var bConc = blockConcurrency(allWithDates, 'bStart', 'bEnd');
+      var oConc = blockConcurrency(allWithDates, 'oStart', 'oEnd');
+      var bGroups = findConcurrentGroups(allWithDates, 'bStart', 'bEnd');
+      var oGroups = findConcurrentGroups(allWithDates, 'oStart', 'oEnd');
+
+      var moreBlocks = oConc.maxConcurrent > bConc.maxConcurrent;
+      var parLabel = moreBlocks
+        ? 'Deploy ' + fCrew + ' across more blocks simultaneously — up to ' + oConc.maxConcurrent + ' blocks under construction at once vs ' + bConc.maxConcurrent + ' in baseline (' + oConc.overlappingBlocks + ' of ' + oConc.totalBlocks + ' blocks overlap with another)'
+        : 'Deploy ' + fCrew + ' across multiple blocks simultaneously — up to ' + oConc.maxConcurrent + ' blocks under construction at once (' + oConc.overlappingBlocks + ' of ' + oConc.totalBlocks + ' blocks overlap with another, vs ' + bConc.overlappingBlocks + ' in baseline)';
       levers.push({
         type: 'parallel',
         shortLabel: 'Parallel Execution',
         label: parLabel,
         baselineGroups: bGroups,
         optimizedGroups: oGroups,
+        baselineConcurrency: bConc,
+        optimizedConcurrency: oConc,
         count: overlapDiffs.length,
       });
     }
@@ -343,7 +403,7 @@
         };
       });
       var avgSaved = Math.round(durDiffs.reduce(function (s, d) { return s + Math.abs(d.durVar); }, 0) / durDiffs.length);
-      var durLabel = 'Add crew to ' + durDiffs.length + ' ' + crewName + ' activit' + (durDiffs.length === 1 ? 'y' : 'ies') + ' to compress durations — saves an average of ' + avgSaved + ' days per activity';
+      var durLabel = 'Add crew to ' + durDiffs.length + ' ' + fCrew + ' activit' + (durDiffs.length === 1 ? 'y' : 'ies') + ' to compress durations — saves an average of ' + avgSaved + ' days per activity';
       levers.push({
         type: 'duration',
         shortLabel: 'Duration Compression',
@@ -386,13 +446,15 @@
       });
       var avgHoSaved = Math.round(hoDetails.reduce(function (s, h) { return s + h.saved; }, 0) / hoDetails.length);
       var fsToSsCount = hoDetails.filter(function (h) { return h.relChanged && h.bRel === 'FS' && h.oRel === 'SS'; }).length;
-      var hoLabel = 'Tighten handoffs for ' + crewName + ' across ' + handoffDiffs.length + ' transition' + (handoffDiffs.length !== 1 ? 's' : '') + ' — cut ' + avgHoSaved + ' days of average idle time';
+      var hoLabel;
       if (fsToSsCount > 0) {
-        hoLabel += '. ' + fsToSsCount + ' of ' + hoDetails.length + ' task relationships changed from FS to SS';
+        hoLabel = 'Change ' + fsToSsCount + ' of ' + hoDetails.length + ' ' + fCrew + ' task relationships from finish-to-start to start-to-start — activities begin while predecessors are still in progress, saving ' + avgHoSaved + ' days of idle time per transition';
+      } else {
+        hoLabel = 'Reduce gaps between ' + fCrew + ' activities and their predecessors across ' + handoffDiffs.length + ' transition' + (handoffDiffs.length !== 1 ? 's' : '') + ' — saving ' + avgHoSaved + ' days of idle time per transition';
       }
       levers.push({
         type: 'handoff',
-        shortLabel: 'Handoff Compression',
+        shortLabel: 'Idle Time Reduction',
         label: hoLabel,
         details: hoDetails,
         count: handoffDiffs.length,

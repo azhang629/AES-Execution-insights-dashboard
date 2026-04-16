@@ -6,7 +6,7 @@
     EXECUTION:    'Execution Path',
     PARALLEL:     'Parallel Execution',
     DURATION:     'Duration Compression',
-    HANDOFF:      'Handoff Compression',
+    HANDOFF:      'Idle Time Reduction',
   };
 
   var TACTIC_COLORS = {};
@@ -21,7 +21,7 @@
     { name: TACTICS.EXECUTION,    signals: 'Predecessor logic changed — relationships added, removed, or driving pred swapped', example: 'Driving predecessor changed from pile install to survey' },
     { name: TACTICS.PARALLEL,     signals: 'New SS relationship or negative lag — activities now overlap predecessors',    example: 'DC stringing starts while module install is still active' },
     { name: TACTICS.DURATION,     signals: 'Duration shortened via crew increase, start date similar',                     example: 'Same window, +8 workers, 3d shorter duration' },
-    { name: TACTICS.HANDOFF,      signals: 'Gap between same driving predecessor reduced by >1 day (FS to SS)',            example: 'Civil-to-tracker handoff shrunk by 5d' },
+    { name: TACTICS.HANDOFF,      signals: 'Relationship changed from FS to SS — activities overlap with predecessors',   example: 'Tracker install starts while civil is still in progress' },
   ];
 
   ATT.detectAreaConstraints = function (diffs) {

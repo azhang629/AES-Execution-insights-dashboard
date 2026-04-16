@@ -2,8 +2,6 @@
   'use strict';
 
   var MS_PER_DAY = 86400000;
-  var SKIP_RE = /mobiliz/i;
-
   // ── Step 1: Scope subgraph by BFS backward from milestone ──
   function scopeSubgraph(sched, milestoneId) {
     var ancestors = {};
@@ -439,7 +437,7 @@
 
   function filterForDisplay(tasks) {
     return tasks.filter(function (t) {
-      return t && !SKIP_RE.test(t.task_name) && t.early_start && t.early_end;
+      return t && t.early_start && t.early_end;
     });
   }
 
@@ -615,7 +613,7 @@
       var tf = floatResult.totalFloat[id];
       if (tf !== null && tf <= toleranceDays) {
         var task = sched.taskById[id];
-        if (task && !SKIP_RE.test(task.task_name) && task.early_start && task.early_end) {
+        if (task && task.early_start && task.early_end) {
           zfIds.push(id);
         }
       }

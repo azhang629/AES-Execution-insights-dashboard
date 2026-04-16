@@ -282,7 +282,8 @@
     }
 
     if (lever.type === 'handoff' && lever.details) {
-      return '<div class="epc-crew-table"><table>' +
+      return '<div style="color:var(--text-dim);font-size:11px;font-style:italic;padding:4px 0 8px">Note: Only showing activities where (1) the driving predecessor is the same in both schedules and (2) the wait time before the activity starts dropped by more than 1 day.</div>' +
+        '<div class="epc-crew-table"><table>' +
         '<thead><tr><th>Activity</th><th>Predecessor</th><th>Why</th></tr></thead><tbody>' +
         lever.details.map(function (d) {
           var bGapStr = d.bGap !== null ? d.bGap + 'd' : 'n/a';
