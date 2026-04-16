@@ -160,7 +160,7 @@
       .map(function (bn) { return { block: bn, start: blockStarts[bn] }; });
   }
 
-  function generateCrewLevers(crewDiffs, R) {
+  function generateCrewLevers(crewDiffs, R, crewName) {
     var mcCutoff = R.oMCDate || R.bMCDate || null;
     var levers = [];
     var preMC = crewDiffs.filter(function (d) { return isPreMC(d, mcCutoff) && d.oStart && d.bStart; });
@@ -174,10 +174,22 @@
       var bStr = basePath.map(function (p) { return p.block; }).join(' \u2192 ');
       var oStr = optPath.map(function (p) { return p.block; }).join(' \u2192 ');
       var changed = bStr !== oStr;
+      var movedBlocks = [];
+      optPath.forEach(function (p, i) {
+        var bIdx = -1;
+        basePath.forEach(function (bp, bi) { if (bp.block === p.block) bIdx = bi; });
+        if (bIdx >= 0 && bIdx !== i) movedBlocks.push(p.block);
+      });
+      var reseqLabel = changed
+        ? crewName + ' install sequence changes across ' + movedBlocks.length + ' block' + (movedBlocks.length !== 1 ? 's' : '')
+        : crewName + ' follows the same block-by-block install sequence';
+      var reseqSummary = changed
+        ? 'Optimized schedule reorders which blocks are built first — ' + movedBlocks.slice(0, 3).join(', ') + (movedBlocks.length > 3 ? ' and ' + (movedBlocks.length - 3) + ' more' : '')
+        : 'No change in block progression between baseline and optimized';
       levers.push({
         type: 'resequencing',
-        label: 'Workfront Resequencing',
-        summary: changed ? 'Installation order changed between scenarios' : 'Same installation order in both scenarios',
+        label: reseqLabel,
+        summary: reseqSummary,
         baselinePath: bStr,
         optimizedPath: oStr,
         baselineBlocks: basePath.map(function (p) { return p.block; }),
@@ -201,10 +213,12 @@
           predComparison: comparePredecessors(d, R.baseline, R.optimized),
         };
       });
+      var epLabel = crewName + ' predecessor logic changed for ' + pathDiffs.length + ' activit' + (pathDiffs.length === 1 ? 'y' : 'ies');
+      var epSummary = 'Driving predecessors were added, removed, or swapped — changes what triggers ' + crewName + ' to start';
       levers.push({
         type: 'execution_path',
-        label: 'Execution Path',
-        summary: pathDiffs.length + ' activit' + (pathDiffs.length === 1 ? 'y' : 'ies') + ' with changed predecessor logic',
+        label: epLabel,
+        summary: epSummary,
         details: epDetails,
         count: pathDiffs.length,
       });
@@ -225,10 +239,12 @@
           oEnd: fmtDate(d.oEnd),
         };
       });
+      var parLabel = crewName + ' runs ' + overlapDiffs.length + ' activit' + (overlapDiffs.length === 1 ? 'y' : 'ies') + ' in parallel with predecessors';
+      var parSummary = 'Finish-to-Start relationships changed to Start-to-Start — ' + crewName + ' work begins before the predecessor finishes';
       levers.push({
         type: 'parallel',
-        label: 'Parallel Execution',
-        summary: overlapDiffs.length + ' activit' + (overlapDiffs.length === 1 ? 'y' : 'ies') + ' now overlap predecessors (FS \u2192 SS)',
+        label: parLabel,
+        summary: parSummary,
         details: parDetails,
         count: overlapDiffs.length,
       });
@@ -250,10 +266,13 @@
           saved: Math.abs(d.durVar).toFixed(0),
         };
       });
+      var avgSaved = Math.round(durDiffs.reduce(function (s, d) { return s + Math.abs(d.durVar); }, 0) / durDiffs.length);
+      var durLabel = crewName + ' activity durations compressed by adding crew (' + avgSaved + 'd avg savings)';
+      var durSummary = durDiffs.length + ' activit' + (durDiffs.length === 1 ? 'y' : 'ies') + ' finish faster because more ' + crewName + ' crew are assigned';
       levers.push({
         type: 'duration',
-        label: 'Duration Compression',
-        summary: durDiffs.length + ' activit' + (durDiffs.length === 1 ? 'y' : 'ies') + ' shortened via crew increase',
+        label: durLabel,
+        summary: durSummary,
         details: dcDetails,
         count: durDiffs.length,
       });
@@ -276,10 +295,13 @@
           saved: (bGap !== null && oGap !== null) ? Math.abs(bGap - oGap) : Math.abs(Math.round(d.logic.lagDelta / 24)),
         };
       });
+      var avgHoSaved = Math.round(hoDetails.reduce(function (s, h) { return s + h.saved; }, 0) / hoDetails.length);
+      var hoLabel = crewName + ' starts sooner after predecessor finishes (' + avgHoSaved + 'd avg gap reduction)';
+      var hoSummary = 'Wait time between the preceding trade finishing and ' + crewName + ' starting is reduced for ' + handoffDiffs.length + ' handoff' + (handoffDiffs.length !== 1 ? 's' : '');
       levers.push({
         type: 'handoff',
-        label: 'Handoff Compression',
-        summary: handoffDiffs.length + ' handoff' + (handoffDiffs.length === 1 ? '' : 's') + ' tightened between predecessor trades',
+        label: hoLabel,
+        summary: hoSummary,
         details: hoDetails,
         count: handoffDiffs.length,
       });
@@ -304,11 +326,12 @@
         if (bP.peak < 3 && oP.peak < 3) return;
 
         var shiftD = (bP.date && oP.date) ? Math.round((bP.date - oP.date) / 86400000) : 0;
+        var cn = shortName(crew);
         var crewDiffs = matchCrewToDiffs(crew, diffs);
-        var levers = generateCrewLevers(crewDiffs, R);
+        var levers = generateCrewLevers(crewDiffs, R, cn);
 
         crewBuckets.push({
-          crewName: shortName(crew),
+          crewName: cn,
           bPeakDate: bP.date,
           oPeakDate: oP.date,
           bPeakCount: Math.round(bP.peak),
@@ -332,7 +355,7 @@
         var bPeak = sweepCrewPeak(commDiffs, 'bStart', 'bEnd', 'bCrewSize');
         var oPeak = sweepCrewPeak(commDiffs, 'oStart', 'oEnd', 'oCrewSize');
         var shiftD = (bPeak.date && oPeak.date) ? Math.round((bPeak.date - oPeak.date) / 86400000) : 0;
-        var levers = generateCrewLevers(commDiffs, R);
+        var levers = generateCrewLevers(commDiffs, R, comm);
 
         crewBuckets.push({
           crewName: comm,
