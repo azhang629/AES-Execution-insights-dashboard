@@ -246,15 +246,12 @@
         if (bIdx >= 0 && bIdx !== i) movedBlocks.push(p.block);
       });
       var reseqLabel = changed
-        ? crewName + ' install sequence changes across ' + movedBlocks.length + ' block' + (movedBlocks.length !== 1 ? 's' : '')
-        : crewName + ' follows the same block-by-block install sequence';
-      var reseqSummary = changed
-        ? 'Optimized schedule reorders which blocks are built first — ' + movedBlocks.slice(0, 3).join(', ') + (movedBlocks.length > 3 ? ' and ' + (movedBlocks.length - 3) + ' more' : '')
-        : 'No change in block progression between baseline and optimized';
+        ? 'The optimized schedule changes the order ' + crewName + ' moves through blocks — ' + movedBlocks.length + ' block' + (movedBlocks.length !== 1 ? 's' : '') + ' are repositioned (e.g. ' + movedBlocks.slice(0, 3).join(', ') + (movedBlocks.length > 3 ? ' and ' + (movedBlocks.length - 3) + ' more' : '') + ')'
+        : crewName + ' follows the same block-by-block installation sequence in both scenarios';
       levers.push({
         type: 'resequencing',
+        shortLabel: 'Workfront Resequencing',
         label: reseqLabel,
-        summary: reseqSummary,
         baselinePath: bStr,
         optimizedPath: oStr,
         baselineBlocks: basePath.map(function (p) { return p.block; }),
@@ -278,12 +275,11 @@
           predComparison: comparePredecessors(d, R.baseline, R.optimized),
         };
       });
-      var epLabel = crewName + ' predecessor logic changed for ' + pathDiffs.length + ' activit' + (pathDiffs.length === 1 ? 'y' : 'ies');
-      var epSummary = 'Driving predecessors were added, removed, or swapped — changes what triggers ' + crewName + ' to start';
+      var epLabel = 'The driving predecessors that trigger ' + crewName + ' activities to start have been added, removed, or swapped across ' + pathDiffs.length + ' activit' + (pathDiffs.length === 1 ? 'y' : 'ies');
       levers.push({
         type: 'execution_path',
+        shortLabel: 'Execution Path',
         label: epLabel,
-        summary: epSummary,
         details: epDetails,
         count: pathDiffs.length,
       });
@@ -318,12 +314,11 @@
       var bParCount = bGroups.filter(function (g) { return g.blocks.length > 1; }).length;
       var oParCount = oGroups.filter(function (g) { return g.blocks.length > 1; }).length;
 
-      var parLabel = crewName + ' increases parallel workfronts from ' + bParCount + ' to ' + oParCount + ' concurrent groups';
-      var parSummary = 'Optimized schedule overlaps more blocks simultaneously, reducing total duration';
+      var parLabel = 'The optimized schedule runs more ' + crewName + ' blocks at the same time — concurrent groups go from ' + bParCount + ' to ' + oParCount + ', overlapping more workfronts to reduce total duration';
       levers.push({
         type: 'parallel',
+        shortLabel: 'Parallel Execution',
         label: parLabel,
-        summary: parSummary,
         baselineGroups: bGroups,
         optimizedGroups: oGroups,
         count: overlapDiffs.length,
@@ -347,12 +342,11 @@
         };
       });
       var avgSaved = Math.round(durDiffs.reduce(function (s, d) { return s + Math.abs(d.durVar); }, 0) / durDiffs.length);
-      var durLabel = crewName + ' activity durations compressed by adding crew (' + avgSaved + 'd avg savings)';
-      var durSummary = durDiffs.length + ' activit' + (durDiffs.length === 1 ? 'y' : 'ies') + ' finish faster because more ' + crewName + ' crew are assigned';
+      var durLabel = durDiffs.length + ' ' + crewName + ' activit' + (durDiffs.length === 1 ? 'y finishes' : 'ies finish') + ' faster by assigning more crew — saving an average of ' + avgSaved + ' days per activity';
       levers.push({
         type: 'duration',
+        shortLabel: 'Duration Compression',
         label: durLabel,
-        summary: durSummary,
         details: dcDetails,
         count: durDiffs.length,
       });
@@ -376,12 +370,11 @@
         };
       });
       var avgHoSaved = Math.round(hoDetails.reduce(function (s, h) { return s + h.saved; }, 0) / hoDetails.length);
-      var hoLabel = crewName + ' starts sooner after predecessor finishes (' + avgHoSaved + 'd avg gap reduction)';
-      var hoSummary = 'Wait time between the preceding trade finishing and ' + crewName + ' starting is reduced for ' + handoffDiffs.length + ' handoff' + (handoffDiffs.length !== 1 ? 's' : '');
+      var hoLabel = 'The wait time between the preceding trade finishing and ' + crewName + ' starting is reduced across ' + handoffDiffs.length + ' handoff' + (handoffDiffs.length !== 1 ? 's' : '') + ' — averaging ' + avgHoSaved + ' fewer days of idle time per handoff';
       levers.push({
         type: 'handoff',
+        shortLabel: 'Handoff Compression',
         label: hoLabel,
-        summary: hoSummary,
         details: hoDetails,
         count: handoffDiffs.length,
       });

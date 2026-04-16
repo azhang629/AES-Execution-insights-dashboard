@@ -123,7 +123,7 @@
       var leverCount = b.levers.length;
       var leverSummary = leverCount > 0
         ? '<div class="crew-lever-summary">' + leverCount + ' lever' + (leverCount !== 1 ? 's' : '') + ' identified: ' +
-          b.levers.map(function (lv) { return lv.label; }).join(', ') + '</div>'
+          b.levers.map(function (lv) { return lv.shortLabel || lv.type; }).join(', ') + '</div>'
         : '<div class="crew-lever-summary" style="color:var(--text-dim)">No schedule levers detected for this crew</div>';
 
       var leversHtml = b.levers.map(function (lv, li) {
@@ -132,9 +132,9 @@
         return '<div class="epc-lever">' +
           '<div class="epc-lever-header" onclick="ATT.toggleLever(\'' + uid + '\')">' +
             '<span class="epc-lever-arrow" id="arrow-' + uid + '">\u25B6</span>' +
-            '<span class="epc-lever-name">' + lv.label + '</span>' +
+            '<span class="epc-lever-name">' + (lv.shortLabel || lv.type) + '</span>' +
             '<span class="epc-lever-count">' + lv.count + '</span>' +
-            '<span class="epc-lever-summary-text">' + lv.summary + '</span>' +
+            '<span class="epc-lever-summary-text">' + lv.label + '</span>' +
           '</div>' +
           '<div class="epc-lever-detail" id="' + uid + '" style="display:none">' + detailHtml + '</div>' +
         '</div>';
