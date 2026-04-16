@@ -3,9 +3,19 @@
 
   var parseDate = ATT.parseDate;
 
-  function classifyCommodity(name, trade, elementType) {
+  function parseElementType(elementType) {
     var el = (elementType || '').trim();
-    if (el) return el;
+    if (!el) return null;
+    var idx = el.indexOf('_');
+    if (idx > 0) {
+      return { commodity: el.substring(0, idx).trim(), block: el.substring(idx + 1).trim() };
+    }
+    return { commodity: el, block: '' };
+  }
+
+  function classifyCommodity(name, trade, elementType) {
+    var parsed = parseElementType(elementType);
+    if (parsed && parsed.commodity) return parsed.commodity;
 
     var n = (name || '').toLowerCase();
 
@@ -77,6 +87,10 @@
       var blockNotation = extractBlockNotation(row['Task Name'], row['Property: custom_alice_block_name']);
       var parts = blockNotation.split('.');
 
+      var elParsed = parseElementType(row['Property: custom_alice_element_type']);
+      var elBlock = elParsed ? elParsed.block : '';
+      var elParts = elBlock ? elBlock.split('.') : [];
+
       var totalFloatHr = parseFloat(row['Total Slack (hrs)']) || 0;
       var criticalFlag = (row['Critical'] || '').toLowerCase() === 'true';
       var durationHr   = parseFloat(row['At Completion Duration (Workhours)']) || 0;
@@ -113,10 +127,10 @@
         cstr_date:      parseDate(row['Primary Constraint Date'] || row['Constraint Date'] || ''),
         commodity:      classifyCommodity(row['Task Name'], row['Trade'], row['Property: custom_alice_element_type']),
         trade:          row['Trade'] || '',
-        blockNotation:  blockNotation,
-        blockNum:       parts[0] || '',
-        area:           parts[1] || '',
-        subArea:        parts[2] || '',
+        blockNotation:  blockNotation || elBlock,
+        blockNum:       parts[0] || elParts[0] || '',
+        area:           parts[1] || elParts[1] || '',
+        subArea:        parts[2] || elParts[2] || '',
         laborCrewSize:  laborCrewSize,
         laborHrs:       laborHrs,
         resources:      resources,
