@@ -80,7 +80,6 @@
   </div>
   <div class="tab-nav">
     <button class="tab-btn active" data-tab="executive">Executive Summary</button>
-    <button class="tab-btn" data-tab="tactics">Tactic Buckets <span class="tab-indicator" id="ti-tactics">0</span></button>
     <button class="tab-btn" data-tab="workfronts">Workfront Sequences</button>
     <button class="tab-btn" data-tab="crew">Crew Changes</button>
     <button class="tab-btn" data-tab="critical">Critical Path</button>
@@ -113,30 +112,6 @@
             <div class="chart-sub">Share of schedule improvement by trade</div>
             <div id="chart-commodity" style="height:400px"></div>
           </div>
-        </div>
-      </div>
-
-      <!-- TAB: Tactic Buckets -->
-      <div class="tab-panel" id="tab-tactics">
-        <div class="section-header">
-          <div class="section-title">Tactic Classification</div>
-          <div class="section-sub">Rules-based analysis of how each schedule change was achieved</div>
-        </div>
-        <div class="tactic-grid" id="tactic-grid"></div>
-        <div class="chart-wrap">
-          <div class="chart-title">Top 20 Highest-Impact Activity Changes</div>
-          <div class="chart-sub">Finish date improvement in calendar days</div>
-          <div id="chart-top20" style="height:420px"></div>
-        </div>
-        <div class="section-header" style="margin-top:8px">
-          <div class="section-title">Classification Rules</div>
-          <div class="section-sub">Transparent logic behind each tactic assignment</div>
-        </div>
-        <div class="data-table-wrap">
-          <table class="data-table">
-            <thead><tr><th>Tactic</th><th>Primary Signals</th><th>Example Pattern</th></tr></thead>
-            <tbody id="rules-table"></tbody>
-          </table>
         </div>
       </div>
 

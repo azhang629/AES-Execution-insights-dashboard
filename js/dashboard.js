@@ -14,7 +14,6 @@
   ATT.renderDashboard = function (R) {
     renderExecutiveSummary(R);
     renderEPCActions(R);
-    renderTacticBuckets(R);
     renderWorkfrontSequences(R);
     renderCrewTimeline(R);
     renderCriticalPath(R);
@@ -163,49 +162,6 @@
         '</div>' +
         weakHtml +
       '</div>';
-    }).join('');
-  }
-
-  // ── Tactic Buckets ──
-  function renderTacticBuckets(R) {
-    var aggregations = R.aggregations, diffs = R.diffs;
-    var sortedTactics = Object.entries(aggregations.byTactic)
-      .map(function (e) { return { name: e[0], count: e[1].count, scaledDays: e[1].scaledDays, diffs: e[1].diffs }; })
-      .sort(function (a, b) { return b.scaledDays - a.scaledDays; });
-
-    var maxDays = sortedTactics[0] ? sortedTactics[0].scaledDays : 1;
-
-    document.getElementById('tactic-grid').innerHTML = sortedTactics.map(function (t) {
-      var color = TACTIC_COLORS[t.name] || '#4f8ef7';
-      var topActs = t.diffs.sort(function (a, b) { return a.finishVar - b.finishVar; }).slice(0, 4);
-      return '<div class="tactic-card" onclick="ATT.filterByTactic(\'' + t.name + '\')"><div class="tactic-header"><div class="tactic-dot" style="background:' + color + '"></div><div class="tactic-name">' + t.name + '</div><div class="tactic-count">' + t.count + ' activities</div></div><div class="tactic-bar-wrap"><div class="tactic-bar" style="background:' + color + ';width:' + Math.min(100, (t.scaledDays / maxDays) * 100).toFixed(0) + '%"></div></div><span class="tactic-days">' + (t.scaledDays || 0) + '</span><span class="tactic-days-label"> estimated days</span><div class="tactic-activities">' +
-        topActs.map(function (d) {
-          return '<div class="tactic-act-item"><span>' + (d.task_name.length > 50 ? d.task_name.substring(0, 50) + '\u2026' : d.task_name) + '</span><span class="tactic-act-badge">' + (d.finishVar < 0 ? '\u25B2' : '\u25BC') + ' ' + Math.abs(d.finishVar).toFixed(0) + 'd</span></div>';
-        }).join('') + '</div></div>';
-    }).join('');
-
-    // Top 20 chart
-    var top20 = diffs.filter(function (d) { return d.finishVar !== 0; })
-      .sort(function (a, b) { return a.finishVar - b.finishVar; }).slice(0, 20);
-
-    plotDark('chart-top20', [{
-      type: 'bar', orientation: 'h',
-      x: top20.map(function (d) { return -d.finishVar; }),
-      y: top20.map(function (d) { return d.task_name.substring(0, 45) + ' [' + (d.blockNotation || d.blockNum) + ']'; }),
-      marker: { color: top20.map(function (d) { return d.finishVar < 0 ? '#22d3a8' : '#ef4444'; }) },
-      text: top20.map(function (d) { return (d.finishVar < 0 ? '\u25B2 ' : '\u25BC ') + Math.abs(d.finishVar).toFixed(1) + 'd'; }),
-      textposition: 'outside',
-      hovertemplate: '<b>%{y}</b><br>%{x:.1f} days<extra></extra>',
-    }], {
-      xaxis: { title: 'Days Improvement (earlier finish = positive)', color: '#8899bb', gridcolor: '#2a3050' },
-      yaxis: { autorange: 'reversed', color: '#e2e8f0', tickfont: { size: 10 } },
-      margin: { l: 380, r: 80, t: 10, b: 50 },
-      height: 420,
-    });
-
-    // Rules table
-    document.getElementById('rules-table').innerHTML = TACTIC_RULES.map(function (r) {
-      return '<tr><td><span class="badge badge-tactic" style="background:' + (TACTIC_COLORS[r.name] || '#4f8ef7') + '20;color:' + (TACTIC_COLORS[r.name] || '#4f8ef7') + '">' + r.name + '</span></td><td style="color:var(--text-muted);font-size:12px">' + r.signals + '</td><td style="color:var(--text-dim);font-style:italic;font-size:12px">' + r.example + '</td></tr>';
     }).join('');
   }
 
@@ -959,9 +915,6 @@
     }).join('');
   }
 
-  ATT.filterByTactic = function (tacticName) {
-    ATT.switchTab('workfronts');
-  };
 
   // ── ALICE Crew Curves (single chart with filter) ──
   var _crewCache = null;
