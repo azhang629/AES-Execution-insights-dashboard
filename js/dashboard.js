@@ -65,9 +65,9 @@
       hovertemplate: '<b>%{y}</b><br>~%{x} days<extra></extra>',
     }], {
       xaxis: { title: 'Schedule Days Recovered', color: '#8899bb', gridcolor: '#2a3050' },
-      yaxis: { autorange: 'reversed', color: '#e2e8f0', tickfont: { size: 11 }, automargin: true },
-      margin: { l: 10, r: 100, t: 10, b: 40 },
-      height: Math.max(300, sortedTactics.length * 36 + 50),
+      yaxis: { autorange: 'reversed', color: '#e2e8f0', tickfont: { size: 10 }, automargin: true },
+      margin: { l: 10, r: 60, t: 10, b: 40 },
+      height: Math.max(280, sortedTactics.length * 36 + 50),
     });
 
     // Commodity donut
@@ -91,7 +91,7 @@
       showlegend: true,
       legend: { font: { color: '#e2e8f0', size: 11 }, orientation: 'h', y: -0.15 },
       margin: { l: 10, r: 10, t: 10, b: 50 },
-      height: 300,
+      height: 280,
     });
 
     // Insights
