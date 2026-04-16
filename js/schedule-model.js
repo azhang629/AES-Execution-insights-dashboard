@@ -204,33 +204,50 @@
     sched.codDate = null;
     sched.substDate = null;
     sched.mcTask = null;
+    sched.codTask = null;
+    sched.scTask = null;
     sched.mcCandidates = [];
+    var codCandidates = [];
+    var scCandidates = [];
 
     for (var mi = 0; mi < tasks.length; mi++) {
       var tn = (tasks[mi].task_name || '').toLowerCase();
-      var tEnd = tasks[mi].early_end || tasks[mi].early_start;
 
       if (/mechanical[\s_-]*completion/i.test(tasks[mi].task_name) || /\bmc\b.*milestone/i.test(tasks[mi].task_name)) {
         sched.mcCandidates.push(tasks[mi]);
       }
-
-      if (!sched.codDate && (/\bcod\b/.test(tn) || /commercial.{0,10}operat/.test(tn))) {
-        sched.codDate = tEnd;
+      if (/\bcod\b/.test(tn) || /commercial.{0,10}operat/.test(tn)) {
+        codCandidates.push(tasks[mi]);
       }
-      if (!sched.substDate && /substantial.*complet/.test(tn)) {
-        sched.substDate = tEnd;
+      if (/substantial.*complet/.test(tn)) {
+        scCandidates.push(tasks[mi]);
       }
     }
 
-    if (sched.mcCandidates.length > 0) {
-      sched.mcCandidates.sort(function (a, b) {
+    function pickLatest(candidates) {
+      if (!candidates.length) return null;
+      candidates.sort(function (a, b) {
         var ae = a.early_end || a.early_start || new Date(0);
         var be = b.early_end || b.early_start || new Date(0);
         return be - ae;
       });
-      sched.mcTask = sched.mcCandidates[0];
-      sched.mcDate = sched.mcTask.early_end || sched.mcTask.early_start;
+      return candidates[0];
     }
+
+    sched.mcTask = pickLatest(sched.mcCandidates);
+    sched.mcDate = sched.mcTask ? (sched.mcTask.early_end || sched.mcTask.early_start) : null;
+
+    sched.codTask = pickLatest(codCandidates);
+    sched.codDate = sched.codTask ? (sched.codTask.early_end || sched.codTask.early_start) : null;
+
+    sched.scTask = pickLatest(scCandidates);
+    sched.substDate = sched.scTask ? (sched.scTask.early_end || sched.scTask.early_start) : null;
+
+    sched.milestones = {};
+    if (sched.scTask)  sched.milestones['SC']  = { task: sched.scTask,  label: 'Substantial Completion', date: sched.substDate };
+    if (sched.mcTask)  sched.milestones['MC']  = { task: sched.mcTask,  label: 'Mechanical Completion',  date: sched.mcDate };
+    if (sched.codTask) sched.milestones['COD'] = { task: sched.codTask, label: 'Commercial Operation',   date: sched.codDate };
+    sched.milestones['END'] = { task: null, label: 'Project End (latest task)', date: sched.projectEnd };
 
     sched.projectName = name.replace(/_[0-9a-f-]{36}\.csv$/i, '').replace(/_/g, ' ').trim() || name;
 

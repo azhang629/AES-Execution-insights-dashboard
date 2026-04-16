@@ -358,12 +358,76 @@
   var _cpCache = null;
   var _cpMethod = 'longest-path';
   var _cpNCThreshold = 10;
+  var _cpMilestone = 'SC';
+
+  function buildMilestoneOptions(baseline, optimized) {
+    var bMs = baseline.milestones || {};
+    var oMs = optimized.milestones || {};
+    var keys = {};
+    Object.keys(bMs).forEach(function (k) { keys[k] = true; });
+    Object.keys(oMs).forEach(function (k) { keys[k] = true; });
+
+    var order = ['SC', 'MC', 'COD', 'END'];
+    var options = [];
+    order.forEach(function (k) {
+      if (!keys[k]) return;
+      var bInfo = bMs[k], oInfo = oMs[k];
+      var label = (bInfo || oInfo).label;
+      var bDate = bInfo ? bInfo.date : null;
+      var oDate = oInfo ? oInfo.date : null;
+      var dateHint = '';
+      if (bDate && oDate) dateHint = ' (' + fmtDate(bDate) + ' / ' + fmtDate(oDate) + ')';
+      else if (bDate) dateHint = ' (B: ' + fmtDate(bDate) + ')';
+      else if (oDate) dateHint = ' (O: ' + fmtDate(oDate) + ')';
+      var hasBoth = !!(bInfo && bInfo.task && oInfo && oInfo.task);
+      options.push({ key: k, label: label + dateHint, available: k === 'END' || hasBoth });
+    });
+    return options;
+  }
+
+  function getDefaultMilestone(options) {
+    for (var i = 0; i < options.length; i++) {
+      if (options[i].key === 'SC' && options[i].available) return 'SC';
+    }
+    for (var j = 0; j < options.length; j++) {
+      if (options[j].key === 'MC' && options[j].available) return 'MC';
+    }
+    return 'END';
+  }
+
+  function milestoneTaskId(sched, key) {
+    var ms = (sched.milestones || {})[key];
+    if (ms && ms.task) return ms.task.task_id;
+    if (key === 'END') {
+      var tasks = Object.values(sched.taskById);
+      var latest = null;
+      for (var i = 0; i < tasks.length; i++) {
+        if (tasks[i].early_end && (!latest || tasks[i].early_end > latest.early_end)) latest = tasks[i];
+      }
+      return latest ? latest.task_id : null;
+    }
+    return null;
+  }
 
   function renderCriticalPath(R) {
     var baseline = R.baseline, optimized = R.optimized;
     _cpCache = { baseline: baseline, optimized: optimized };
     _cpMethod = 'longest-path';
     _cpNCThreshold = 10;
+
+    var msOptions = buildMilestoneOptions(baseline, optimized);
+    _cpMilestone = getDefaultMilestone(msOptions);
+
+    var sel = document.getElementById('cp-milestone-filter');
+    if (sel) {
+      sel.innerHTML = msOptions.map(function (o) {
+        var dis = o.available ? '' : ' disabled';
+        var selected = o.key === _cpMilestone ? ' selected' : '';
+        return '<option value="' + o.key + '"' + selected + dis + '>' + o.label + (o.available ? '' : ' (not found)') + '</option>';
+      }).join('');
+    }
+
+    rerunCPMForMilestone(baseline, optimized, _cpMilestone);
 
     var toggle = document.getElementById('cp-method-toggle');
     if (toggle) {
@@ -374,8 +438,55 @@
     var ncWrap = document.getElementById('cp-tolerance-wrap');
     if (ncWrap) ncWrap.style.display = 'none';
 
+    var msName = getMilestoneName();
+    var chartTitle = document.getElementById('cp-chart-title');
+    var chartSub = document.getElementById('cp-chart-sub');
+    if (chartTitle) chartTitle.textContent = 'Longest Path \u2014 Driving Chain to ' + msName;
+    if (chartSub) chartSub.textContent = 'Activities on the driving logic chain from start to ' + msName;
+    var desc = document.getElementById('cp-method-desc');
+    if (desc) desc.textContent = 'Traces the single continuous chain of driving logic from project start to ' + msName + '.';
+
     updateCPStats();
     ATT.updateCPGantt();
+  }
+
+  function rerunCPMForMilestone(baseline, optimized, key) {
+    var bMsId = milestoneTaskId(baseline, key);
+    var oMsId = milestoneTaskId(optimized, key);
+    ATT.runCPM(baseline, bMsId);
+    ATT.runCPM(optimized, oMsId);
+  }
+
+  ATT.setCPMilestone = function (key) {
+    if (!_cpCache) return;
+    _cpMilestone = key;
+    rerunCPMForMilestone(_cpCache.baseline, _cpCache.optimized, key);
+
+    var msName = getMilestoneName();
+    var chartTitle = document.getElementById('cp-chart-title');
+    var chartSub = document.getElementById('cp-chart-sub');
+    var desc = document.getElementById('cp-method-desc');
+    if (_cpMethod === 'longest-path') {
+      if (chartTitle) chartTitle.textContent = 'Longest Path \u2014 Driving Chain to ' + msName;
+      if (chartSub) chartSub.textContent = 'Activities on the driving logic chain from start to ' + msName;
+      if (desc) desc.textContent = 'Traces the single continuous chain of driving logic from project start to ' + msName + '.';
+    } else {
+      if (chartTitle) chartTitle.textContent = 'Zero Total Float \u2014 Critical Activities to ' + msName;
+      if (chartSub) chartSub.textContent = 'All activities with total float \u2264 0 (may include multiple disconnected segments)';
+      if (desc) desc.textContent = 'All activities where Total Float \u2264 0 relative to ' + msName + '. May produce multiple disconnected segments.';
+    }
+
+    updateCPStats();
+    ATT.updateCPGantt();
+  };
+
+  function getMilestoneName() {
+    var sel = document.getElementById('cp-milestone-filter');
+    if (!sel) return 'milestone';
+    var opt = sel.options[sel.selectedIndex];
+    if (!opt) return 'milestone';
+    var label = opt.textContent.split('(')[0].trim();
+    return label || 'milestone';
   }
 
   ATT.setCPMethod = function (method) {
@@ -386,21 +497,22 @@
         btn.classList.toggle('active', btn.dataset.method === method);
       });
     }
+    var msName = getMilestoneName();
     var desc = document.getElementById('cp-method-desc');
     if (desc) {
       desc.textContent = method === 'longest-path'
-        ? 'Traces the single continuous chain of driving logic from project start to the selected milestone.'
-        : 'All activities where Total Float \u2264 0. May produce multiple disconnected segments.';
+        ? 'Traces the single continuous chain of driving logic from project start to ' + msName + '.'
+        : 'All activities where Total Float \u2264 0 relative to ' + msName + '. May produce multiple disconnected segments.';
     }
     var ncWrap = document.getElementById('cp-tolerance-wrap');
     if (ncWrap) ncWrap.style.display = method === 'zero-float' ? '' : 'none';
     var chartTitle = document.getElementById('cp-chart-title');
     var chartSub = document.getElementById('cp-chart-sub');
     if (method === 'longest-path') {
-      if (chartTitle) chartTitle.textContent = 'Longest Path \u2014 Driving Chain';
-      if (chartSub) chartSub.textContent = 'Activities on the driving logic chain from start to finish milestone';
+      if (chartTitle) chartTitle.textContent = 'Longest Path \u2014 Driving Chain to ' + msName;
+      if (chartSub) chartSub.textContent = 'Activities on the driving logic chain from start to ' + msName;
     } else {
-      if (chartTitle) chartTitle.textContent = 'Zero Total Float \u2014 Critical Activities';
+      if (chartTitle) chartTitle.textContent = 'Zero Total Float \u2014 Critical Activities to ' + msName;
       if (chartSub) chartSub.textContent = 'All activities with total float \u2264 0 (may include multiple disconnected segments)';
     }
     updateCPStats();

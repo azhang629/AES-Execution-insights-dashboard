@@ -145,6 +145,13 @@
         <div class="stats-grid" id="cp-top-stats" style="margin-bottom:16px"></div>
 
         <div class="cp-controls">
+          <div class="cp-control-row" style="margin-bottom:10px">
+            <div>
+              <span class="filter-label">End Milestone:</span>
+              <select class="filter-select" id="cp-milestone-filter" onchange="ATT.setCPMilestone(this.value)">
+              </select>
+            </div>
+          </div>
           <div class="cp-method-toggle" id="cp-method-toggle">
             <button class="cp-method-btn active" data-method="longest-path" onclick="ATT.setCPMethod('longest-path')">Longest Path</button>
             <button class="cp-method-btn" data-method="zero-float" onclick="ATT.setCPMethod('zero-float')">Zero Total Float</button>

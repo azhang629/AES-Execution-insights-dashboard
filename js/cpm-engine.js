@@ -449,7 +449,8 @@
   }
 
   // ── Main CPM entry point ──
-  ATT.runCPM = function (sched) {
+  // optMilestoneId: if provided, use this task ID as the milestone endpoint
+  ATT.runCPM = function (sched, optMilestoneId) {
     var tasks = Object.values(sched.taskById);
 
     for (var i = 0; i < tasks.length; i++) {
@@ -459,18 +460,23 @@
         : Math.max((t.cal_duration_hr || t.duration_hr || 0) * 3600000, 0);
     }
 
-    // Determine milestone (prefer MC task, fall back to latest end date)
-    var milestoneId = null;
-    if (sched.mcTask) {
-      milestoneId = sched.mcTask.task_id;
-    } else {
-      var latestTask = null;
-      for (var li = 0; li < tasks.length; li++) {
-        if (tasks[li].early_end && (!latestTask || tasks[li].early_end > latestTask.early_end)) {
-          latestTask = tasks[li];
+    var milestoneId = optMilestoneId || null;
+
+    if (!milestoneId) {
+      // Default priority: SC > MC > latest task
+      if (sched.scTask) {
+        milestoneId = sched.scTask.task_id;
+      } else if (sched.mcTask) {
+        milestoneId = sched.mcTask.task_id;
+      } else {
+        var latestTask = null;
+        for (var li = 0; li < tasks.length; li++) {
+          if (tasks[li].early_end && (!latestTask || tasks[li].early_end > latestTask.early_end)) {
+            latestTask = tasks[li];
+          }
         }
+        if (latestTask) milestoneId = latestTask.task_id;
       }
-      if (latestTask) milestoneId = latestTask.task_id;
     }
 
     if (!milestoneId) {
