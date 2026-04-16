@@ -100,7 +100,28 @@
   }
 
   function lookupPredTask(sched, predId) {
-    return sched.taskById[predId] || sched.taskByCode[predId] || sched.taskByName[predId] || null;
+    if (!predId) return null;
+    var t = sched.taskById[predId] || sched.taskByCode[predId] || sched.taskByName[predId];
+    if (t) return t;
+    var norm = predId.replace(/^A0*/i, '');
+    var ids = Object.keys(sched.taskById);
+    for (var i = 0; i < ids.length; i++) {
+      if (ids[i].replace(/^A0*/i, '') === norm) return sched.taskById[ids[i]];
+    }
+    return null;
+  }
+
+  function predTaskName(sched, predId) {
+    var t = lookupPredTask(sched, predId);
+    return t ? t.task_name : predId;
+  }
+
+  function resolveName(predId, primary, secondary) {
+    var t = lookupPredTask(primary, predId);
+    if (t) return t.task_name;
+    var t2 = lookupPredTask(secondary, predId);
+    if (t2) return t2.task_name;
+    return predId;
   }
 
   function comparePredecessors(diff, baseline, optimized) {
@@ -111,17 +132,15 @@
     var bNames = {};
     for (var i = 0; i < bPreds.length; i++) {
       var p = bPreds[i];
-      var pt = lookupPredTask(baseline, p.pred_task_id);
-      var name = pt ? pt.task_name : p.pred_task_id;
-      if (name && !bNames[name]) bNames[name] = pt;
+      var name = resolveName(p.pred_task_id, baseline, optimized);
+      if (name && !bNames[name]) bNames[name] = true;
     }
 
     var oNames = {};
     for (var j = 0; j < oPreds.length; j++) {
       var op = oPreds[j];
-      var opt = lookupPredTask(optimized, op.pred_task_id);
-      var oname = opt ? opt.task_name : op.pred_task_id;
-      if (oname && !oNames[oname]) oNames[oname] = opt;
+      var oname = resolveName(op.pred_task_id, optimized, baseline);
+      if (oname && !oNames[oname]) oNames[oname] = true;
     }
 
     var items = [];
