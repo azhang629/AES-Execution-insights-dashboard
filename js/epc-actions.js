@@ -32,17 +32,58 @@
     return { peak: Math.round(peak), date: peakDate };
   }
 
+  function normCrew(s) {
+    return (s || '').toLowerCase().replace(/_/g, ' ').replace(/\s+crew\s*$/i, '').replace(/\s+/g, ' ').trim();
+  }
+
   function matchCrewToDiffs(crewName, diffs) {
-    var cn = shortName(crewName).toLowerCase().replace(/\s+crew\s*$/i, '').trim();
+    var cn = normCrew(shortName(crewName));
+    if (!cn) return [];
+
+    // 1. Match by resource/crew assignment on the task (most accurate — same ALICE source)
+    var byResource = diffs.filter(function (d) {
+      var res = (d.b && d.b.resources) || [];
+      if (!res.length && d.o) res = d.o.resources || [];
+      return res.some(function (r) {
+        var rn = normCrew(r.rsrc_name);
+        return rn === cn || rn.indexOf(cn) >= 0 || cn.indexOf(rn) >= 0;
+      });
+    });
+    if (byResource.length > 0) return byResource;
+
+    // 2. Match by trade field on original task
+    var byTrade = diffs.filter(function (d) {
+      var t = normCrew(d.b ? d.b.trade : '');
+      return t && (t === cn || t.indexOf(cn) >= 0 || cn.indexOf(t) >= 0);
+    });
+    if (byTrade.length > 0) return byTrade;
+
+    // 3. Exact commodity match
     var exact = diffs.filter(function (d) {
-      return d.commodity && d.commodity.toLowerCase() === cn;
+      return d.commodity && normCrew(d.commodity) === cn;
     });
     if (exact.length > 0) return exact;
-    return diffs.filter(function (d) {
+
+    // 4. Contains match on commodity
+    var contains = diffs.filter(function (d) {
       if (!d.commodity) return false;
-      var comm = d.commodity.toLowerCase();
+      var comm = normCrew(d.commodity);
       return cn.indexOf(comm) >= 0 || comm.indexOf(cn) >= 0;
     });
+    if (contains.length > 0) return contains;
+
+    // 5. Token overlap — at least 2 shared words
+    var cnTokens = cn.split(' ');
+    if (cnTokens.length >= 2) {
+      return diffs.filter(function (d) {
+        var comm = normCrew(d.commodity);
+        var commTokens = comm.split(' ');
+        var overlap = cnTokens.filter(function (t) { return commTokens.indexOf(t) >= 0; });
+        return overlap.length >= 2;
+      });
+    }
+
+    return [];
   }
 
   function comparePredecessors(diff, baseline, optimized) {
