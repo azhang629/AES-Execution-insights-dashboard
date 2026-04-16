@@ -168,72 +168,71 @@
       });
     })();
 
-    // ── 2. Parallel Execution (Logic FS -> SS) ──
+    // ── 2. Parallel Execution (Logic FS -> SS) ── consolidated
     var overlapDiffs = preMC.filter(function (d) {
       return d.logic && d.logic.newSS > 0 && Math.abs(d.finishVar) > 1 && !usedTasks[d.task_code];
     }).sort(function (a, b) { return a.finishVar - b.finishVar; });
 
-    overlapDiffs.slice(0, 2).forEach(function (d) {
-      usedTasks[d.task_code] = true;
-      var loc = blockTag(d);
-      var predLabel = d.logic.drivingPredName ? '\u201C' + shortName(d.logic.drivingPredName) + '\u201D' : 'predecessor';
-      var weak = !d.logic.sameDriving;
-      var weakNote = '';
-      if (weak) {
-        weakNote = 'Driving predecessor differs between schedules' +
-          (d.logic.bPredCount !== d.logic.oPredCount ? ' (predecessor count: ' + d.logic.bPredCount + ' \u2192 ' + d.logic.oPredCount + ')' : '') +
-          '. Execution path was restructured \u2014 not a direct like-for-like comparison.';
-      }
-
-      actions.push({
-        title: 'Run \u201C' + shortName(d.task_name) + '\u201D parallel with ' + predLabel + (loc ? ' in ' + loc : ''),
-        bullets: [
-          'Logic changed from finish-to-start to start-to-start on ' + d.logic.newSS + ' relationship(s) \u2014 activity now overlaps its predecessor',
-          'Parallel work fronts: two trades in the same area concurrently instead of sequentially',
-          'Finish pulled forward ' + Math.abs(d.finishVar).toFixed(0) + 'd (' + fmtDate(d.bEnd) + ' \u2192 ' + fmtDate(d.oEnd) + ')',
-        ],
-        fieldAction: 'Coordinate zone boundaries between ' + shortName(d.task_name) + ' and ' + predLabel + ' crews. Foremen agree on work zones and sequence within the shared area before either trade starts.',
-        priority: d.oCritical ? 'Critical' : 'High',
-        impact: Math.abs(d.finishVar),
-        weakLogic: weak,
-        weakLogicNote: weakNote,
-      });
-    });
-
-    // ── 3. Duration Compression via Crew Increase ──
-    var crewCompByTrade = {};
-    preMC.filter(function (d) {
-      return d.durVar < -1 && d.laborVar > 0.5 && Math.abs(d.startVar) < 5 && !usedTasks[d.task_code];
-    }).forEach(function (d) {
-      var k = d.commodity;
-      if (!crewCompByTrade[k] || Math.abs(d.durVar) > Math.abs(crewCompByTrade[k].durVar)) {
-        crewCompByTrade[k] = d;
-      }
-    });
-
-    Object.values(crewCompByTrade)
-      .sort(function (a, b) { return a.durVar - b.durVar; })
-      .slice(0, 2)
-      .forEach(function (d) {
+    if (overlapDiffs.length > 0) {
+      var olItems = overlapDiffs.slice(0, 8).map(function (d) {
         usedTasks[d.task_code] = true;
         var loc = blockTag(d);
-        actions.push({
-          title: 'Add ' + d.laborVar.toFixed(0) + ' workers to \u201C' + shortName(d.task_name) + '\u201D' + (loc ? ' in ' + loc : '') + ' \u2014 compress ' + d.bDurDays.toFixed(0) + 'd to ' + d.oDurDays.toFixed(0) + 'd',
-          bullets: [
-            'Crew increased from ' + d.bCrewSize.toFixed(0) + ' to ' + d.oCrewSize.toFixed(0) + ' (+' + d.laborVar.toFixed(0) + ' workers). Duration shortened by ' + Math.abs(d.durVar).toFixed(0) + 'd',
-            'Higher crew loading \u2014 same work scope completed faster with more workers on the activity',
-          ],
-          fieldAction: 'Get sub to commit ' + d.oCrewSize.toFixed(0) + ' crew in writing (up from ' + d.bCrewSize.toFixed(0) + '). Ensure tools and equipment for the larger gang are staged at the workfront before start.',
-          priority: d.oCritical ? 'Critical' : 'High',
-          impact: Math.abs(d.durVar),
-          weakLogic: false,
-          weakLogicNote: '',
-        });
+        var predLabel = d.logic.drivingPredName ? shortName(d.logic.drivingPredName) : 'predecessor';
+        return {
+          text: shortName(d.task_name) + (loc ? ' (' + loc + ')' : '') + ' \u2014 run parallel with ' + predLabel + ', finish ' + Math.abs(d.finishVar).toFixed(0) + 'd earlier (' + fmtDate(d.bEnd) + ' \u2192 ' + fmtDate(d.oEnd) + ')',
+          weak: !d.logic.sameDriving,
+        };
       });
+      var totalOlGain = overlapDiffs.slice(0, 8).reduce(function (s, d) { return s + Math.abs(d.finishVar); }, 0);
+      var anyOlCrit = overlapDiffs.slice(0, 8).some(function (d) { return d.oCritical; });
 
-    // ── 4. Block Resequencing / Area Release ──
+      actions.push({
+        title: 'Parallel Execution \u2014 ' + olItems.length + ' activit' + (olItems.length === 1 ? 'y' : 'ies') + ' overlap predecessors',
+        bullets: [
+          'Logic changed from finish-to-start to start-to-start \u2014 activities now overlap predecessors instead of waiting',
+          'Coordinate zone boundaries so two trades can work the same area concurrently',
+        ],
+        subItems: olItems,
+        priority: anyOlCrit ? 'Critical' : 'High',
+        impact: totalOlGain,
+        weakLogic: olItems.some(function (it) { return it.weak; }),
+        weakLogicNote: olItems.some(function (it) { return it.weak; }) ? 'Some items have differing driving predecessors between schedules \u2014 not a direct like-for-like comparison.' : '',
+      });
+    }
+
+    // ── 3. Duration Compression via Crew Increase ── consolidated
+    var crewCompDiffs = preMC.filter(function (d) {
+      return d.durVar < -1 && d.laborVar > 0.5 && Math.abs(d.startVar) < 5 && !usedTasks[d.task_code];
+    }).sort(function (a, b) { return a.durVar - b.durVar; });
+
+    if (crewCompDiffs.length > 0) {
+      var ccItems = crewCompDiffs.slice(0, 8).map(function (d) {
+        usedTasks[d.task_code] = true;
+        var loc = blockTag(d);
+        return {
+          text: shortName(d.task_name) + (loc ? ' (' + loc + ')' : '') + ' \u2014 crew ' + d.bCrewSize.toFixed(0) + ' \u2192 ' + d.oCrewSize.toFixed(0) + ', duration ' + d.bDurDays.toFixed(0) + 'd \u2192 ' + d.oDurDays.toFixed(0) + 'd (\u2212' + Math.abs(d.durVar).toFixed(0) + 'd)',
+        };
+      });
+      var totalCcGain = crewCompDiffs.slice(0, 8).reduce(function (s, d) { return s + Math.abs(d.durVar); }, 0);
+      var anyCcCrit = crewCompDiffs.slice(0, 8).some(function (d) { return d.oCritical; });
+
+      actions.push({
+        title: 'Duration Compression \u2014 ' + ccItems.length + ' activit' + (ccItems.length === 1 ? 'y' : 'ies') + ' shortened via crew increase',
+        bullets: [
+          'Higher crew loading \u2014 same work scope completed faster with more workers on each activity',
+          'Confirm subs can commit to the higher crew counts in writing before start',
+        ],
+        subItems: ccItems,
+        priority: anyCcCrit ? 'Critical' : 'High',
+        impact: totalCcGain,
+        weakLogic: false,
+        weakLogicNote: '',
+      });
+    }
+
+    // ── 4. Block Resequencing / Area Release ── consolidated
     var reseqDiffs = preMC.filter(function (d) {
-      return d.startVar < -5 && Math.abs(d.durVar) < 1 && Math.abs(d.laborVar) < 0.5 && d.blockNum;
+      return d.startVar < -5 && Math.abs(d.durVar) < 1 && Math.abs(d.laborVar) < 0.5 && d.blockNum && !usedTasks[d.task_code];
     });
 
     var reseqByBlock = {};
@@ -244,11 +243,16 @@
       reseqByBlock[k].totalShift += d.startVar;
     });
 
-    Object.entries(reseqByBlock)
+    var reseqBlocks = Object.entries(reseqByBlock)
       .filter(function (e) { return e[1].diffs.length >= 3; })
-      .sort(function (a, b) { return a[1].totalShift - b[1].totalShift; })
-      .slice(0, 2)
-      .forEach(function (e) {
+      .sort(function (a, b) { return a[1].totalShift - b[1].totalShift; });
+
+    if (reseqBlocks.length > 0) {
+      var rsItems = [];
+      var totalRsImpact = 0;
+      var anyRsCrit = false;
+
+      reseqBlocks.forEach(function (e) {
         var block = e[0], info = e[1];
         var avgShift = Math.round(info.totalShift / info.diffs.length);
         var earliest = info.diffs.sort(function (a, b) { return a.oStart - b.oStart; })[0];
@@ -260,75 +264,93 @@
         var isConstraint = constraintCount > info.diffs.length * 0.5;
 
         info.diffs.forEach(function (d) { usedTasks[d.task_code] = true; });
+        if (info.diffs.some(function (d) { return d.oCritical; })) anyRsCrit = true;
+        totalRsImpact += Math.abs(avgShift) * info.diffs.length;
 
-        actions.push({
-          title: (isConstraint ? 'Release ' : 'Resequence ') + loc + ' \u2014 ' + info.diffs.length + ' activities start ~' + Math.abs(avgShift) + 'd earlier',
-          bullets: [
-            info.diffs.length + ' activities in ' + loc + ' shift ~' + Math.abs(avgShift) + 'd earlier. Same scope, same crew, same durations',
-            isConstraint
-              ? 'Area constraint released earlier \u2014 ' + loc + ' available sooner than baseline'
-              : 'Block execution resequenced \u2014 ' + loc + ' moves ahead in the construction sequence',
-          ],
-          fieldAction: isConstraint
-            ? 'Secure area access for ' + loc + ' by ' + fmtDate(earliest.oStart) + '. Permit/release must be in hand before crew mobilizes.'
-            : 'Execute ' + loc + ' starting ' + fmtDate(earliest.oStart) + '. Coordinate with adjacent blocks to avoid resource conflicts.',
-          priority: info.diffs.some(function (d) { return d.oCritical; }) ? 'Critical' : 'High',
-          impact: Math.abs(avgShift) * info.diffs.length,
-          weakLogic: false,
-          weakLogicNote: '',
+        rsItems.push({
+          text: loc + ' \u2014 ' + info.diffs.length + ' activities start ~' + Math.abs(avgShift) + 'd earlier' +
+            (isConstraint ? ' (area constraint released)' : ' (block resequenced)') +
+            '. Start by ' + fmtDate(earliest.oStart),
         });
       });
 
-    // ── 5. Handoff Compression (same driving predecessor) ──
+      actions.push({
+        title: 'Block Resequencing \u2014 ' + reseqBlocks.length + ' block' + (reseqBlocks.length === 1 ? '' : 's') + ' move ahead in construction sequence',
+        bullets: [
+          'Blocks execute in a different order \u2014 same scope, same crew, same durations but earlier start dates',
+          'Coordinate with adjacent blocks to avoid resource conflicts at the new start dates',
+        ],
+        subItems: rsItems,
+        priority: anyRsCrit ? 'Critical' : 'High',
+        impact: totalRsImpact,
+        weakLogic: false,
+        weakLogicNote: '',
+      });
+    }
+
+    // ── 5. Handoff Compression (same driving predecessor) ── consolidated
     var handoffDiffs = preMC.filter(function (d) {
       return d.logic && d.logic.lagDelta < -24 && d.logic.sameDriving && !usedTasks[d.task_code];
     }).sort(function (a, b) { return a.logic.lagDelta - b.logic.lagDelta; });
 
-    handoffDiffs.slice(0, 2).forEach(function (d) {
-      usedTasks[d.task_code] = true;
-      var loc = blockTag(d);
-      var bGap = d.logic.bDrivingLagDays !== null ? Math.round(d.logic.bDrivingLagDays) : null;
-      var oGap = d.logic.oDrivingLagDays !== null ? Math.round(d.logic.oDrivingLagDays) : null;
-      var predName = d.logic.drivingPredName ? nameWithBlock(d.logic.drivingPredName) : 'predecessor';
-      var gapDelta = (bGap !== null && oGap !== null) ? Math.abs(bGap - oGap) : Math.abs(Math.round(d.logic.lagDelta / 24));
+    if (handoffDiffs.length > 0) {
+      var hoItems = handoffDiffs.slice(0, 8).map(function (d) {
+        usedTasks[d.task_code] = true;
+        var loc = blockTag(d);
+        var bGap = d.logic.bDrivingLagDays !== null ? Math.round(d.logic.bDrivingLagDays) : null;
+        var oGap = d.logic.oDrivingLagDays !== null ? Math.round(d.logic.oDrivingLagDays) : null;
+        var predName = d.logic.drivingPredName ? shortName(d.logic.drivingPredName) : 'predecessor';
+        var gapDelta = (bGap !== null && oGap !== null) ? Math.abs(bGap - oGap) : Math.abs(Math.round(d.logic.lagDelta / 24));
+        return {
+          text: shortName(d.task_name) + (loc ? ' (' + loc + ')' : '') + ' \u2014 gap after ' + predName + ' reduced ' + (bGap !== null ? bGap + 'd' : '?') + ' \u2192 ' + (oGap !== null ? oGap + 'd' : '?') + ' (\u2212' + gapDelta + 'd)',
+        };
+      });
+      var totalHoGain = hoItems.length;
+      var anyHoCrit = handoffDiffs.slice(0, 8).some(function (d) { return d.oCritical; });
 
       actions.push({
-        title: 'Close ' + gapDelta + 'd gap between \u201C' + shortName(d.logic.drivingPredName || '') + '\u201D and \u201C' + shortName(d.task_name) + '\u201D' + (loc ? ' in ' + loc : ''),
+        title: 'Handoff Compression \u2014 ' + hoItems.length + ' trade handoff' + (hoItems.length === 1 ? '' : 's') + ' tightened',
         bullets: [
-          'Handoff gap reduced from ' + (bGap !== null ? bGap + 'd' : '?') + ' to ' + (oGap !== null ? oGap + 'd' : '?') + '. Same predecessor drives in both schedules',
-          'Tighter trade handoff \u2014 predecessor completes and successor crew starts with less idle time between',
+          'Idle time between predecessor and successor trades reduced \u2014 crews start sooner after the previous trade finishes',
+          'Predecessor crew must finish clean with no punch items blocking the next trade',
         ],
-        fieldAction: 'Predecessor crew must finish clean with no punch items blocking the next trade. Successor crew staged and ready to start within ' + (oGap !== null ? oGap + 'd' : 'reduced gap') + ' of predecessor completion.',
-        priority: d.oCritical ? 'Critical' : 'High',
-        impact: gapDelta,
+        subItems: hoItems,
+        priority: anyHoCrit ? 'Critical' : 'High',
+        impact: totalHoGain * 10,
         weakLogic: false,
         weakLogicNote: '',
       });
-    });
+    }
 
-    // ── 6. Changed Execution Path (weak logic flag) ──
+    // ── 6. Changed Execution Path (weak logic flag) ── consolidated
     var changedPaths = preMC.filter(function (d) {
       return Math.abs(d.finishVar) > 5 && d.logic && !usedTasks[d.task_code] &&
         (d.logic.added > 2 || d.logic.removed > 2 ||
          (!d.logic.sameDriving && d.logic.bPredCount !== d.logic.oPredCount));
     }).sort(function (a, b) { return a.finishVar - b.finishVar; });
 
-    changedPaths.slice(0, 1).forEach(function (d) {
-      usedTasks[d.task_code] = true;
-      var loc = blockTag(d);
-      actions.push({
-        title: '\u201C' + shortName(d.task_name) + '\u201D' + (loc ? ' in ' + loc : '') + ' \u2014 execution path restructured',
-        bullets: [
-          'Predecessor count: ' + d.logic.bPredCount + ' \u2192 ' + d.logic.oPredCount + '.' + (d.logic.added > 0 ? ' ' + d.logic.added + ' added.' : '') + (d.logic.removed > 0 ? ' ' + d.logic.removed + ' removed.' : '') + ' Finish shifted ' + Math.abs(d.finishVar).toFixed(0) + 'd',
-          'Execution path restructured \u2014 the optimized schedule uses a different predecessor/successor chain than baseline',
-        ],
-        fieldAction: 'Review the optimized predecessor logic for this activity. Verify the new construction sequence is executable in the field before committing crew.',
-        priority: 'Medium',
-        impact: Math.abs(d.finishVar),
-        weakLogic: true,
-        weakLogicNote: 'Logic path differs between baseline and optimized. ' + (d.logic.added || 0) + ' predecessor(s) added, ' + (d.logic.removed || 0) + ' removed. This is not a like-for-like comparison \u2014 the construction sequence was restructured.',
+    if (changedPaths.length > 0) {
+      var cpItems = changedPaths.slice(0, 6).map(function (d) {
+        usedTasks[d.task_code] = true;
+        var loc = blockTag(d);
+        return {
+          text: shortName(d.task_name) + (loc ? ' (' + loc + ')' : '') + ' \u2014 preds ' + d.logic.bPredCount + ' \u2192 ' + d.logic.oPredCount + ', finish shifted ' + Math.abs(d.finishVar).toFixed(0) + 'd',
+        };
       });
-    });
+
+      actions.push({
+        title: 'Execution Path Restructured \u2014 ' + cpItems.length + ' activit' + (cpItems.length === 1 ? 'y' : 'ies') + ' with changed predecessor logic',
+        bullets: [
+          'Optimized schedule uses different predecessor/successor chains than baseline',
+          'Review optimized logic for each activity \u2014 verify the new construction sequence is executable in the field',
+        ],
+        subItems: cpItems,
+        priority: 'Medium',
+        impact: changedPaths.slice(0, 6).reduce(function (s, d) { return s + Math.abs(d.finishVar); }, 0),
+        weakLogic: true,
+        weakLogicNote: 'Logic paths differ between baseline and optimized \u2014 these are not like-for-like comparisons. The construction sequence was restructured.',
+      });
+    }
 
     var prioOrder = { Critical: 0, High: 1, Medium: 2 };
     actions.sort(function (a, b) {

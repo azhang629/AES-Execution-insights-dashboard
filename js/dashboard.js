@@ -123,6 +123,16 @@
         '</ul>';
       }
 
+      var subItemsHtml = '';
+      if (a.subItems && a.subItems.length) {
+        subItemsHtml = '<div class="epc-sub-items"><ol>' +
+          a.subItems.map(function (si) {
+            var warnIcon = si.weak ? ' <span style="color:var(--warn);font-size:10px" title="Weak logic \u2014 driving predecessor differs">\u26A0</span>' : '';
+            return '<li>' + si.text + warnIcon + '</li>';
+          }).join('') +
+        '</ol></div>';
+      }
+
       var crewHtml = '';
       if (a.crewShifts && a.crewShifts.length) {
         crewHtml = '<div class="epc-crew-table"><table>' +
@@ -148,6 +158,7 @@
         '</div>' +
         '<div class="epc-body">' +
           bulletsHtml +
+          subItemsHtml +
           crewHtml +
         '</div>' +
         weakHtml +
