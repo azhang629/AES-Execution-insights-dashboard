@@ -381,13 +381,17 @@
         earliest: earliest,
       };
     });
-    rows.sort(function (a, b) {
-      if (!isSingleTrade) {
-        var cc = a.commodity.localeCompare(b.commodity);
-        if (cc !== 0) return cc;
-      }
-      return a.earliest - b.earliest;
-    });
+    if (chosenLevel === 'task') {
+      rows.sort(function (a, b) { return a.earliest - b.earliest; });
+    } else {
+      rows.sort(function (a, b) {
+        if (!isSingleTrade) {
+          var cc = a.commodity.localeCompare(b.commodity);
+          if (cc !== 0) return cc;
+        }
+        return a.earliest - b.earliest;
+      });
+    }
     for (var ri = 0; ri < rows.length; ri++) rows[ri].seq = ri + 1;
 
     var showB = chosenScen === 'both' || chosenScen === 'baseline';
@@ -404,7 +408,8 @@
     if (titleEl) titleEl.textContent = tradeLabel + ' \u2014 ' + lvlName + ' Progression';
     if (subEl) subEl.textContent = 'Rows ordered by earliest activity start \u2014 bars show work windows (' + lvlName + ' level)';
 
-    var MAX_ROWS = 150;
+    var totalRows = rows.length;
+    var MAX_ROWS = chosenLevel === 'task' ? 500 : 200;
     var truncated = false;
     if (rows.length > MAX_ROWS) {
       truncated = true;
@@ -494,7 +499,7 @@
 
     var footerEl = document.getElementById('wf-chart-sub');
     if (truncated && footerEl) {
-      footerEl.textContent += ' (showing first ' + MAX_ROWS + ' of ' + (_wfCache.rawTasks.length) + ' rows)';
+      footerEl.textContent += ' (showing first ' + MAX_ROWS + ' of ' + totalRows + ' rows)';
     }
 
     renderWorkfrontSummary(rows, isSingleTrade ? selectedComms[0] : null, chosenScen, chosenLevel, MS_PER_DAY);
