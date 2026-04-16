@@ -28,14 +28,14 @@
 
     var accelLabel, accelDetail;
     if (usingMC) {
-      accelLabel = 'MC Acceleration';
+      accelLabel = 'Mechanical Completion Acceleration';
       accelDetail = 'Mechanical Completion: ' + fmtDate(bMCDate) + ' \u2192 ' + fmtDate(oMCDate);
     } else if (bMCDate && !oMCDate) {
-      accelLabel = 'MC Acceleration (partial)';
-      accelDetail = 'Baseline MC: ' + fmtDate(bMCDate) + ' \u2014 Optimized MC: not found';
+      accelLabel = 'Mechanical Completion Acceleration (partial)';
+      accelDetail = 'Baseline Mechanical Completion: ' + fmtDate(bMCDate) + ' \u2014 Optimized: not found';
     } else if (!bMCDate && oMCDate) {
-      accelLabel = 'MC Acceleration (partial)';
-      accelDetail = 'Baseline MC: not found \u2014 Optimized MC: ' + fmtDate(oMCDate);
+      accelLabel = 'Mechanical Completion Acceleration (partial)';
+      accelDetail = 'Baseline: not found \u2014 Optimized Mechanical Completion: ' + fmtDate(oMCDate);
     } else {
       accelLabel = 'Schedule Acceleration';
       accelDetail = fmtDate(bEndDate) + ' \u2192 ' + fmtDate(oEndDate);
@@ -48,7 +48,7 @@
 
     document.getElementById('stats-grid').innerHTML =
       warningHtml +
-      '<div class="stat-card success"><div class="stat-label">' + accelLabel + '</div><div class="stat-value">' + totalGainDays + 'd</div><div class="stat-detail">' + accelDetail + '</div></div>';
+      '<div class="stat-card success"><div class="stat-label">' + accelLabel + '</div><div class="stat-value">' + totalGainDays + ' days</div><div class="stat-detail">' + accelDetail + '</div></div>';
 
     // Waterfall chart
     var sortedTactics = Object.entries(aggregations.byTactic)
@@ -375,7 +375,6 @@
 
     updateCPStats();
     ATT.updateCPGantt();
-    renderDiagnostics(R);
   }
 
   ATT.setCPMethod = function (method) {
@@ -429,19 +428,41 @@
         '<div class="stat-card warn"><div class="stat-label">Baseline TF\u22640</div><div class="stat-value">' + bZF + '</div><div class="stat-detail">Zero-float activities</div></div>' +
         '<div class="stat-card warn"><div class="stat-label">Optimized TF\u22640</div><div class="stat-value">' + oZF + '</div><div class="stat-detail">Zero-float activities</div></div>';
     } else {
-      var bZF2 = (b.zeroFloatPath || []).length;
-      var oZF2 = (o.zeroFloatPath || []).length;
-      var bSegs = b.cpmResult ? b.cpmResult.zeroFloat.segmentCount : 0;
-      var oSegs = o.cpmResult ? o.cpmResult.zeroFloat.segmentCount : 0;
+      var bZF2 = aliceZeroFloatPath(b).length;
+      var oZF2 = aliceZeroFloatPath(o).length;
       var bNC = ATT.recomputeNearCritical(b, _cpNCThreshold).length;
       var oNC = ATT.recomputeNearCritical(o, _cpNCThreshold).length;
       html =
-        '<div class="stat-card warn"><div class="stat-label">Baseline TF\u22640</div><div class="stat-value">' + bZF2 + '</div><div class="stat-detail">' + bSegs + ' segment' + (bSegs !== 1 ? 's' : '') + '</div></div>' +
-        '<div class="stat-card warn"><div class="stat-label">Optimized TF\u22640</div><div class="stat-value">' + oZF2 + '</div><div class="stat-detail">' + oSegs + ' segment' + (oSegs !== 1 ? 's' : '') + '</div></div>' +
+        '<div class="stat-card warn"><div class="stat-label">Baseline TF\u22640</div><div class="stat-value">' + bZF2 + '</div><div class="stat-detail">ALICE zero-float activities</div></div>' +
+        '<div class="stat-card warn"><div class="stat-label">Optimized TF\u22640</div><div class="stat-value">' + oZF2 + '</div><div class="stat-detail">ALICE zero-float activities</div></div>' +
         '<div class="stat-card accent"><div class="stat-label">Baseline Near-Crit</div><div class="stat-value">' + bNC + '</div><div class="stat-detail">0 < TF \u2264 ' + _cpNCThreshold + 'd</div></div>' +
         '<div class="stat-card accent"><div class="stat-label">Optimized Near-Crit</div><div class="stat-value">' + oNC + '</div><div class="stat-detail">0 < TF \u2264 ' + _cpNCThreshold + 'd</div></div>';
     }
     document.getElementById('cp-top-stats').innerHTML = html;
+  }
+
+  function aliceZeroFloatPath(sched) {
+    if (!sched.cpmResult) return [];
+    var sorted = sched.cpmResult.sorted;
+    var tasks = [];
+    for (var i = 0; i < sorted.length; i++) {
+      var t = sched.taskById[sorted[i]];
+      if (!t || !t.early_start || !t.early_end) continue;
+      var floatHr = t.total_float_hr;
+      if (floatHr == null) floatHr = 0;
+      if (floatHr <= 0) tasks.push(t);
+    }
+    tasks.sort(function (a, b) { return a.early_start - b.early_start; });
+    var result = [];
+    for (var j = 0; j < tasks.length; j++) {
+      var tk = tasks[j];
+      if (!result.length) { result.push(tk); continue; }
+      var prev = result[result.length - 1];
+      if (tk.early_end <= prev.early_end) continue;
+      if (tk.early_start < prev.early_end) tk._displayStart = prev.early_end;
+      result.push(tk);
+    }
+    return result;
   }
 
   ATT.updateCPGantt = function () {
@@ -455,8 +476,8 @@
       bPath = (b.drivingPath || []).filter(function (t) { return t.early_start && t.early_end; });
       oPath = (o.drivingPath || []).filter(function (t) { return t.early_start && t.early_end; });
     } else {
-      bPath = (b.zeroFloatPath || []).filter(function (t) { return t.early_start && t.early_end; });
-      oPath = (o.zeroFloatPath || []).filter(function (t) { return t.early_start && t.early_end; });
+      bPath = aliceZeroFloatPath(b);
+      oPath = aliceZeroFloatPath(o);
     }
 
     bPath.sort(function (a, b) { return a.early_start - b.early_start; });
