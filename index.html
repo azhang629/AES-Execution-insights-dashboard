@@ -80,7 +80,6 @@
   </div>
   <div class="tab-nav">
     <button class="tab-btn active" data-tab="executive">Executive Summary</button>
-    <button class="tab-btn" data-tab="workfronts">Workfront Sequences</button>
     <button class="tab-btn" data-tab="crew">Crew Changes</button>
     <button class="tab-btn" data-tab="critical">Critical Path</button>
   </div>
@@ -113,42 +112,6 @@
             <div id="chart-commodity" style="height:400px"></div>
           </div>
         </div>
-      </div>
-
-      <!-- TAB: Workfront Sequences -->
-      <div class="tab-panel" id="tab-workfronts">
-        <div class="section-header">
-          <div class="section-title">Workfront Sequences</div>
-          <div class="section-sub">Block-by-block progression showing how each trade moves across the site</div>
-        </div>
-        <div class="filter-bar" style="margin-bottom:12px;flex-wrap:wrap;gap:8px 0">
-          <span class="filter-label">Trades:</span>
-          <div class="wf-multi-wrap" id="wf-commodity-multi">
-            <button type="button" class="wf-multi-btn" id="wf-multi-btn" onclick="ATT.toggleTradeDropdown()">All Trades &#9662;</button>
-            <div class="wf-multi-dropdown" id="wf-multi-dropdown"></div>
-          </div>
-          <span class="filter-label" style="margin-left:16px">WBS Level:</span>
-          <select class="filter-select" id="wf-level-filter" onchange="ATT.updateWorkfrontChart()">
-            <option value="block">Block (e.g. 1, 2, 3)</option>
-            <option value="area">Area (e.g. 1.A, 2.B)</option>
-            <option value="subarea" selected>Sub-area (e.g. 1.A.1)</option>
-            <option value="task">All Tasks</option>
-          </select>
-          <span class="filter-label" style="margin-left:16px">Scenario:</span>
-          <select class="filter-select" id="wf-scenario-filter" onchange="ATT.updateWorkfrontChart()">
-            <option value="both">Both (Baseline &amp; Optimized)</option>
-            <option value="baseline">Baseline only</option>
-            <option value="optimized">Optimized only</option>
-          </select>
-        </div>
-        <div class="chart-wrap">
-          <div class="chart-title" id="wf-chart-title">Workfront Progression</div>
-          <div class="chart-sub" id="wf-chart-sub">Each row is a block &mdash; bars show when the selected trade is active</div>
-          <div id="chart-workfront-wrap" style="max-height:700px;overflow-y:auto">
-            <div id="chart-workfront"></div>
-          </div>
-        </div>
-        <div id="wf-sequence-summary" class="cp-path-summary" style="display:none;margin-top:12px"></div>
       </div>
 
       <!-- TAB: Crew Changes -->
