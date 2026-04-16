@@ -204,104 +204,116 @@
   function renderWorkfrontSequences(R) {
     var baseline = R.baseline, optimized = R.optimized;
 
-    var byCommodity = {};
+    var rawTasks = [];
 
     function collectTasks(sched, tag) {
       var tasks = Object.values(sched.taskById);
       for (var i = 0; i < tasks.length; i++) {
         var t = tasks[i];
         if (!t.early_start || !t.early_end) continue;
-        if (!t.blockNotation && !t.blockNum) continue;
         var comm = t.commodity;
         if (comm === 'Other' || comm === 'Milestones') continue;
-        if (!byCommodity[comm]) byCommodity[comm] = {};
-        var blk = t.blockNotation || ('Block ' + t.blockNum);
-        if (!byCommodity[comm][blk]) byCommodity[comm][blk] = { baseline: null, optimized: null };
-        var cur = byCommodity[comm][blk][tag];
-        if (!cur || t.early_start < cur.start) {
-          byCommodity[comm][blk][tag] = {
-            start: t.early_start,
-            end: cur ? (t.early_end > cur.end ? t.early_end : cur.end) : t.early_end,
-            taskCount: cur ? cur.taskCount + 1 : 1,
-          };
-        } else {
-          if (t.early_end > cur.end) cur.end = t.early_end;
-          cur.taskCount++;
-        }
+        rawTasks.push({
+          commodity: comm,
+          taskName: t.task_name,
+          blockNum: t.blockNum || '',
+          area: t.area || '',
+          subArea: t.subArea || '',
+          blockNotation: t.blockNotation || '',
+          start: t.early_start,
+          end: t.early_end,
+          tag: tag,
+        });
       }
     }
 
     collectTasks(baseline, 'baseline');
     collectTasks(optimized, 'optimized');
 
-    var commodityNames = Object.keys(byCommodity).sort();
+    var commodityNames = {};
+    rawTasks.forEach(function (t) { commodityNames[t.commodity] = true; });
+    var commList = Object.keys(commodityNames).sort();
 
     var sel = document.getElementById('wf-commodity-filter');
     if (sel) {
       sel.innerHTML = '<option value="__all__">All Trades</option>' +
-        commodityNames.map(function (c) { return '<option value="' + c + '">' + c + '</option>'; }).join('');
+        commList.map(function (c) { return '<option value="' + c + '">' + c + '</option>'; }).join('');
     }
 
-    _wfCache = { byCommodity: byCommodity, commodityNames: commodityNames };
+    _wfCache = { rawTasks: rawTasks, commodityNames: commList };
     ATT.updateWorkfrontChart();
+  }
+
+  function wfGroupKey(t, level) {
+    if (level === 'block') return t.blockNum || '(none)';
+    if (level === 'area') {
+      if (t.blockNum && t.area) return t.blockNum + '.' + t.area;
+      return t.blockNum || '(none)';
+    }
+    if (level === 'task') return t.taskName || '(unnamed)';
+    return t.blockNotation || (t.blockNum ? t.blockNum + (t.area ? '.' + t.area : '') + (t.subArea ? '.' + t.subArea : '') : '(none)');
   }
 
   ATT.updateWorkfrontChart = function () {
     if (!_wfCache) return;
     var selComm = document.getElementById('wf-commodity-filter');
     var selScen = document.getElementById('wf-scenario-filter');
+    var selLevel = document.getElementById('wf-level-filter');
     var chosenComm = selComm ? selComm.value : '__all__';
     var chosenScen = selScen ? selScen.value : 'both';
-    var data = _wfCache.byCommodity;
+    var chosenLevel = selLevel ? selLevel.value : 'subarea';
     var MS_PER_DAY = 86400000;
 
-    var rows = [];
+    var filtered = _wfCache.rawTasks;
+    if (chosenComm !== '__all__') {
+      filtered = filtered.filter(function (t) { return t.commodity === chosenComm; });
+    }
+    if (chosenLevel !== 'task') {
+      filtered = filtered.filter(function (t) { return t.blockNum || t.blockNotation; });
+    }
 
-    if (chosenComm === '__all__') {
-      var comms = _wfCache.commodityNames;
-      for (var ci = 0; ci < comms.length; ci++) {
-        var comm = comms[ci];
-        var blocks = Object.keys(data[comm]);
-        var sortable = blocks.map(function (blk) {
-          var b = data[comm][blk].baseline;
-          var o = data[comm][blk].optimized;
-          var earliest = b ? b.start : (o ? o.start : new Date());
-          if (o && o.start < earliest) earliest = o.start;
-          return { block: blk, earliest: earliest, data: data[comm][blk], commodity: comm };
-        });
-        sortable.sort(function (a, b) { return a.earliest - b.earliest; });
-        for (var si = 0; si < sortable.length; si++) {
-          rows.push({
-            label: comm + ' \u2014 ' + sortable[si].block,
-            commodity: comm,
-            block: sortable[si].block,
-            seq: si + 1,
-            baseline: sortable[si].data.baseline,
-            optimized: sortable[si].data.optimized,
-          });
-        }
-      }
-    } else {
-      var blocks = Object.keys(data[chosenComm] || {});
-      var sortable = blocks.map(function (blk) {
-        var b = data[chosenComm][blk].baseline;
-        var o = data[chosenComm][blk].optimized;
-        var earliest = b ? b.start : (o ? o.start : new Date());
-        if (o && o.start < earliest) earliest = o.start;
-        return { block: blk, earliest: earliest, data: data[chosenComm][blk] };
-      });
-      sortable.sort(function (a, b) { return a.earliest - b.earliest; });
-      for (var si = 0; si < sortable.length; si++) {
-        rows.push({
-          label: sortable[si].block,
-          commodity: chosenComm,
-          block: sortable[si].block,
-          seq: si + 1,
-          baseline: sortable[si].data.baseline,
-          optimized: sortable[si].data.optimized,
-        });
+    var grouped = {};
+    for (var i = 0; i < filtered.length; i++) {
+      var t = filtered[i];
+      var comm = t.commodity;
+      var key = wfGroupKey(t, chosenLevel);
+      var gk = (chosenComm === '__all__' ? comm + ' \u2014 ' : '') + key;
+
+      if (!grouped[gk]) grouped[gk] = { commodity: comm, key: key, baseline: null, optimized: null };
+      var cur = grouped[gk][t.tag];
+      if (!cur || t.start < cur.start) {
+        grouped[gk][t.tag] = {
+          start: t.start,
+          end: cur ? (t.end > cur.end ? t.end : cur.end) : t.end,
+          taskCount: cur ? cur.taskCount + 1 : 1,
+        };
+      } else {
+        if (t.end > cur.end) cur.end = t.end;
+        cur.taskCount++;
       }
     }
+
+    var rows = Object.keys(grouped).map(function (gk) {
+      var g = grouped[gk];
+      var earliest = g.baseline ? g.baseline.start : (g.optimized ? g.optimized.start : new Date());
+      if (g.optimized && g.optimized.start < earliest) earliest = g.optimized.start;
+      return {
+        label: gk,
+        commodity: g.commodity,
+        block: g.key,
+        baseline: g.baseline,
+        optimized: g.optimized,
+        earliest: earliest,
+      };
+    });
+    rows.sort(function (a, b) {
+      if (chosenComm === '__all__') {
+        var cc = a.commodity.localeCompare(b.commodity);
+        if (cc !== 0) return cc;
+      }
+      return a.earliest - b.earliest;
+    });
+    for (var ri = 0; ri < rows.length; ri++) rows[ri].seq = ri + 1;
 
     var showB = chosenScen === 'both' || chosenScen === 'baseline';
     var showO = chosenScen === 'both' || chosenScen === 'optimized';
@@ -309,10 +321,12 @@
       return (showB && r.baseline) || (showO && r.optimized);
     });
 
+    var levelLabels = { block: 'Block', area: 'Area', subarea: 'Sub-area', task: 'Task' };
     var titleEl = document.getElementById('wf-chart-title');
     var subEl = document.getElementById('wf-chart-sub');
-    if (titleEl) titleEl.textContent = chosenComm === '__all__' ? 'All Trades \u2014 Block Progression' : chosenComm + ' \u2014 Block Progression';
-    if (subEl) subEl.textContent = 'Blocks ordered by earliest activity start \u2014 bars show work windows';
+    var lvlName = levelLabels[chosenLevel] || 'Sub-area';
+    if (titleEl) titleEl.textContent = (chosenComm === '__all__' ? 'All Trades' : chosenComm) + ' \u2014 ' + lvlName + ' Progression';
+    if (subEl) subEl.textContent = 'Rows ordered by earliest activity start \u2014 bars show work windows (' + lvlName + ' level)';
 
     var yLabels = rows.map(function (r) { return r.label; });
     var traces = [];
@@ -381,17 +395,19 @@
       legend: { font: { color: '#8899bb' }, orientation: 'h', y: 1.05 },
     });
 
-    renderWorkfrontSummary(rows, chosenComm, chosenScen, MS_PER_DAY);
+    renderWorkfrontSummary(rows, chosenComm, chosenScen, chosenLevel, MS_PER_DAY);
   };
 
-  function renderWorkfrontSummary(rows, comm, scenario, MS_PER_DAY) {
+  function renderWorkfrontSummary(rows, comm, scenario, level, MS_PER_DAY) {
     var el = document.getElementById('wf-sequence-summary');
     if (!el) return;
 
-    if (comm === '__all__' || rows.length === 0) {
+    if (comm === '__all__' || rows.length === 0 || level === 'task') {
       el.style.display = 'none';
       return;
     }
+
+    var unitName = level === 'block' ? 'blocks' : level === 'area' ? 'areas' : 'sub-areas';
 
     var seqB = [], seqO = [];
     for (var i = 0; i < rows.length; i++) {
@@ -408,14 +424,14 @@
 
     var html = '<div style="font-size:13px;font-weight:700;margin-bottom:8px">' + comm + ' Progression Order</div>';
     if (scenario === 'both' || scenario === 'baseline') {
-      html += '<div class="cp-summary-row"><span class="cp-summary-label">Baseline:</span> <span>' + (bSeqStr || '\u2014') + '</span> <span style="color:var(--text-dim);margin-left:8px">(' + seqB.length + ' blocks)</span></div>';
+      html += '<div class="cp-summary-row"><span class="cp-summary-label">Baseline:</span> <span>' + (bSeqStr || '\u2014') + '</span> <span style="color:var(--text-dim);margin-left:8px">(' + seqB.length + ' ' + unitName + ')</span></div>';
     }
     if (scenario === 'both' || scenario === 'optimized') {
-      html += '<div class="cp-summary-row"><span class="cp-summary-label">Optimized:</span> <span>' + (oSeqStr || '\u2014') + '</span> <span style="color:var(--text-dim);margin-left:8px">(' + seqO.length + ' blocks)</span></div>';
+      html += '<div class="cp-summary-row"><span class="cp-summary-label">Optimized:</span> <span>' + (oSeqStr || '\u2014') + '</span> <span style="color:var(--text-dim);margin-left:8px">(' + seqO.length + ' ' + unitName + ')</span></div>';
     }
     if (scenario === 'both' && resequenced) {
       html += '<div style="margin-top:8px;padding:8px 12px;background:rgba(245,158,11,.07);border-radius:6px;border:1px solid rgba(245,158,11,.2);font-size:12px;color:#f59e0b">' +
-        '\u26A0 Block progression order changed between scenarios \u2014 workfront resequencing detected</div>';
+        '\u26A0 Progression order changed between scenarios \u2014 workfront resequencing detected</div>';
     }
 
     el.style.display = '';

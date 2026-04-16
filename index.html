@@ -151,6 +151,13 @@
           <select class="filter-select" id="wf-commodity-filter" onchange="ATT.updateWorkfrontChart()">
             <option value="__all__">All Trades</option>
           </select>
+          <span class="filter-label" style="margin-left:16px">WBS Level:</span>
+          <select class="filter-select" id="wf-level-filter" onchange="ATT.updateWorkfrontChart()">
+            <option value="block">Block (e.g. 1, 2, 3)</option>
+            <option value="area">Area (e.g. 1.A, 2.B)</option>
+            <option value="subarea" selected>Sub-area (e.g. 1.A.1)</option>
+            <option value="task">All Tasks</option>
+          </select>
           <span class="filter-label" style="margin-left:16px">Scenario:</span>
           <select class="filter-select" id="wf-scenario-filter" onchange="ATT.updateWorkfrontChart()">
             <option value="both">Both (Baseline &amp; Optimized)</option>
