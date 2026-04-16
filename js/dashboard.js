@@ -48,10 +48,7 @@
 
     document.getElementById('stats-grid').innerHTML =
       warningHtml +
-      '<div class="stat-card success"><div class="stat-label">' + accelLabel + '</div><div class="stat-value">' + totalGainDays + 'd</div><div class="stat-detail">' + accelDetail + '</div></div>' +
-      '<div class="stat-card accent"><div class="stat-label">Activities Compared</div><div class="stat-value">' + matchCount.toLocaleString() + '</div><div class="stat-detail">' + changedCount + ' with meaningful changes</div></div>' +
-      '<div class="stat-card warn"><div class="stat-label">Critical Path Changes</div><div class="stat-value">' + critChanges + '</div><div class="stat-detail">Activities moving on/off driving path</div></div>' +
-      '<div class="stat-card accent"><div class="stat-label">Tactic Buckets</div><div class="stat-value">' + Object.keys(aggregations.byTactic).length + '</div><div class="stat-detail">Distinct optimization strategies used</div></div>';
+      '<div class="stat-card success"><div class="stat-label">' + accelLabel + '</div><div class="stat-value">' + totalGainDays + 'd</div><div class="stat-detail">' + accelDetail + '</div></div>';
 
     // Waterfall chart
     var sortedTactics = Object.entries(aggregations.byTactic)
