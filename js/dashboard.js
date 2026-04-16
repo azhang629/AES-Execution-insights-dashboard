@@ -132,9 +132,8 @@
         return '<div class="epc-lever">' +
           '<div class="epc-lever-header" onclick="ATT.toggleLever(\'' + uid + '\')">' +
             '<span class="epc-lever-arrow" id="arrow-' + uid + '">\u25B6</span>' +
-            '<span class="epc-lever-name">' + (lv.shortLabel || lv.type) + '</span>' +
-            '<span class="epc-lever-count">' + lv.count + '</span>' +
-            '<span class="epc-lever-summary-text">' + lv.label + '</span>' +
+            '<span class="epc-lever-name">' + (lv.shortLabel || lv.type) + ':</span>' +
+            '<span class="epc-lever-headline">' + lv.label + '</span>' +
           '</div>' +
           '<div class="epc-lever-detail" id="' + uid + '" style="display:none">' + detailHtml + '</div>' +
         '</div>';

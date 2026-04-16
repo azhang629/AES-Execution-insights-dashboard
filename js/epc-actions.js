@@ -246,8 +246,8 @@
         if (bIdx >= 0 && bIdx !== i) movedBlocks.push(p.block);
       });
       var reseqLabel = changed
-        ? 'The optimized schedule changes the order ' + crewName + ' moves through blocks — ' + movedBlocks.length + ' block' + (movedBlocks.length !== 1 ? 's' : '') + ' are repositioned (e.g. ' + movedBlocks.slice(0, 3).join(', ') + (movedBlocks.length > 3 ? ' and ' + (movedBlocks.length - 3) + ' more' : '') + ')'
-        : crewName + ' follows the same block-by-block installation sequence in both scenarios';
+        ? 'Redirect ' + crewName + ' to follow a new block installation order — ' + movedBlocks.length + ' block' + (movedBlocks.length !== 1 ? 's move' : ' moves') + ' position (e.g. ' + movedBlocks.slice(0, 3).join(', ') + (movedBlocks.length > 3 ? ' and ' + (movedBlocks.length - 3) + ' more' : '') + '). Coordinate with field supervisors to update crew mobilization sequence.'
+        : crewName + ' maintains the same block installation order — no crew redirection needed.';
       levers.push({
         type: 'resequencing',
         shortLabel: 'Workfront Resequencing',
@@ -275,7 +275,7 @@
           predComparison: comparePredecessors(d, R.baseline, R.optimized),
         };
       });
-      var epLabel = 'The driving predecessors that trigger ' + crewName + ' activities to start have been added, removed, or swapped across ' + pathDiffs.length + ' activit' + (pathDiffs.length === 1 ? 'y' : 'ies');
+      var epLabel = 'Update the driving logic for ' + pathDiffs.length + ' ' + crewName + ' activit' + (pathDiffs.length === 1 ? 'y' : 'ies') + ' — predecessors have been added, removed, or swapped. Verify that upstream trades are aligned to the new trigger points before ' + crewName + ' mobilizes.';
       levers.push({
         type: 'execution_path',
         shortLabel: 'Execution Path',
@@ -314,7 +314,7 @@
       var bParCount = bGroups.filter(function (g) { return g.blocks.length > 1; }).length;
       var oParCount = oGroups.filter(function (g) { return g.blocks.length > 1; }).length;
 
-      var parLabel = 'The optimized schedule runs more ' + crewName + ' blocks at the same time — concurrent groups go from ' + bParCount + ' to ' + oParCount + ', overlapping more workfronts to reduce total duration';
+      var parLabel = 'Deploy ' + crewName + ' across multiple blocks simultaneously — increase concurrent workfronts from ' + bParCount + ' to ' + oParCount + ' groups. Ensure sufficient crew count, tools, and material are staged at each active block.';
       levers.push({
         type: 'parallel',
         shortLabel: 'Parallel Execution',
@@ -342,7 +342,7 @@
         };
       });
       var avgSaved = Math.round(durDiffs.reduce(function (s, d) { return s + Math.abs(d.durVar); }, 0) / durDiffs.length);
-      var durLabel = durDiffs.length + ' ' + crewName + ' activit' + (durDiffs.length === 1 ? 'y finishes' : 'ies finish') + ' faster by assigning more crew — saving an average of ' + avgSaved + ' days per activity';
+      var durLabel = 'Add crew to ' + durDiffs.length + ' ' + crewName + ' activit' + (durDiffs.length === 1 ? 'y' : 'ies') + ' to compress durations — saves an average of ' + avgSaved + ' days per activity. Confirm subcontractor can supply the additional headcount on the required dates.';
       levers.push({
         type: 'duration',
         shortLabel: 'Duration Compression',
@@ -370,7 +370,7 @@
         };
       });
       var avgHoSaved = Math.round(hoDetails.reduce(function (s, h) { return s + h.saved; }, 0) / hoDetails.length);
-      var hoLabel = 'The wait time between the preceding trade finishing and ' + crewName + ' starting is reduced across ' + handoffDiffs.length + ' handoff' + (handoffDiffs.length !== 1 ? 's' : '') + ' — averaging ' + avgHoSaved + ' fewer days of idle time per handoff';
+      var hoLabel = 'Tighten handoffs for ' + crewName + ' across ' + handoffDiffs.length + ' transition' + (handoffDiffs.length !== 1 ? 's' : '') + ' — cut ' + avgHoSaved + ' days of average idle time between the preceding trade finishing and ' + crewName + ' starting. Align look-ahead schedules so crews are ready to roll in immediately.';
       levers.push({
         type: 'handoff',
         shortLabel: 'Handoff Compression',
