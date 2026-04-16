@@ -234,15 +234,79 @@
     rawTasks.forEach(function (t) { commodityNames[t.commodity] = true; });
     var commList = Object.keys(commodityNames).sort();
 
-    var sel = document.getElementById('wf-commodity-filter');
-    if (sel) {
-      sel.innerHTML = '<option value="__all__">All Trades</option>' +
-        commList.map(function (c) { return '<option value="' + c + '">' + c + '</option>'; }).join('');
+    _wfSelectedTrades = {};
+    commList.forEach(function (c) { _wfSelectedTrades[c] = true; });
+
+    var dd = document.getElementById('wf-multi-dropdown');
+    if (dd) {
+      var html = '<label class="wf-multi-item" data-val="__all__">' +
+        '<input type="checkbox" checked onchange="ATT.toggleAllTrades(this.checked)"> <span>Select All</span></label>' +
+        '<div class="wf-multi-divider"></div>';
+      commList.forEach(function (c) {
+        html += '<label class="wf-multi-item" data-val="' + c + '">' +
+          '<input type="checkbox" checked onchange="ATT.toggleTrade(\'' + c.replace(/'/g, "\\'") + '\', this.checked)"> <span>' + c + '</span></label>';
+      });
+      dd.innerHTML = html;
     }
+    _wfUpdateBtnLabel();
 
     _wfCache = { rawTasks: rawTasks, commodityNames: commList };
     ATT.updateWorkfrontChart();
   }
+
+  var _wfSelectedTrades = {};
+
+  function _wfUpdateBtnLabel() {
+    var btn = document.getElementById('wf-multi-btn');
+    if (!btn || !_wfCache) return;
+    var all = _wfCache.commodityNames;
+    var selected = all.filter(function (c) { return _wfSelectedTrades[c]; });
+    if (selected.length === 0) {
+      btn.textContent = 'None selected \u25BE';
+    } else if (selected.length === all.length) {
+      btn.textContent = 'All Trades (' + all.length + ') \u25BE';
+    } else if (selected.length <= 2) {
+      btn.textContent = selected.join(', ') + ' \u25BE';
+    } else {
+      btn.textContent = selected.length + ' trades selected \u25BE';
+    }
+  }
+
+  ATT.toggleTradeDropdown = function () {
+    var dd = document.getElementById('wf-multi-dropdown');
+    if (dd) dd.classList.toggle('open');
+  };
+
+  document.addEventListener('click', function (e) {
+    var wrap = document.getElementById('wf-commodity-multi');
+    var dd = document.getElementById('wf-multi-dropdown');
+    if (dd && wrap && !wrap.contains(e.target)) dd.classList.remove('open');
+  });
+
+  ATT.toggleAllTrades = function (checked) {
+    if (!_wfCache) return;
+    _wfCache.commodityNames.forEach(function (c) { _wfSelectedTrades[c] = checked; });
+    var dd = document.getElementById('wf-multi-dropdown');
+    if (dd) {
+      dd.querySelectorAll('input[type="checkbox"]').forEach(function (cb) { cb.checked = checked; });
+    }
+    _wfUpdateBtnLabel();
+    ATT.updateWorkfrontChart();
+  };
+
+  ATT.toggleTrade = function (trade, checked) {
+    _wfSelectedTrades[trade] = checked;
+    var dd = document.getElementById('wf-multi-dropdown');
+    if (dd && _wfCache) {
+      var allCb = dd.querySelector('[data-val="__all__"] input');
+      if (allCb) {
+        var allChecked = _wfCache.commodityNames.every(function (c) { return _wfSelectedTrades[c]; });
+        allCb.checked = allChecked;
+      }
+    }
+    _wfUpdateBtnLabel();
+    ATT.updateWorkfrontChart();
+  };
 
   function wfGroupKey(t, level) {
     if (level === 'block') return t.blockNum || '(none)';
@@ -256,18 +320,18 @@
 
   ATT.updateWorkfrontChart = function () {
     if (!_wfCache) return;
-    var selComm = document.getElementById('wf-commodity-filter');
     var selScen = document.getElementById('wf-scenario-filter');
     var selLevel = document.getElementById('wf-level-filter');
-    var chosenComm = selComm ? selComm.value : '__all__';
     var chosenScen = selScen ? selScen.value : 'both';
     var chosenLevel = selLevel ? selLevel.value : 'subarea';
     var MS_PER_DAY = 86400000;
 
-    var filtered = _wfCache.rawTasks;
-    if (chosenComm !== '__all__') {
-      filtered = filtered.filter(function (t) { return t.commodity === chosenComm; });
-    }
+    var allComms = _wfCache.commodityNames;
+    var selectedComms = allComms.filter(function (c) { return _wfSelectedTrades[c]; });
+    var isAllSelected = selectedComms.length === allComms.length;
+    var isSingleTrade = selectedComms.length === 1;
+
+    var filtered = _wfCache.rawTasks.filter(function (t) { return _wfSelectedTrades[t.commodity]; });
     if (chosenLevel !== 'task') {
       filtered = filtered.filter(function (t) { return t.blockNum || t.blockNotation; });
     }
@@ -277,7 +341,7 @@
       var t = filtered[i];
       var comm = t.commodity;
       var key = wfGroupKey(t, chosenLevel);
-      var gk = (chosenComm === '__all__' ? comm + ' \u2014 ' : '') + key;
+      var gk = (!isSingleTrade ? comm + ' \u2014 ' : '') + key;
 
       if (!grouped[gk]) grouped[gk] = { commodity: comm, key: key, baseline: null, optimized: null };
       var cur = grouped[gk][t.tag];
@@ -307,7 +371,7 @@
       };
     });
     rows.sort(function (a, b) {
-      if (chosenComm === '__all__') {
+      if (!isSingleTrade) {
         var cc = a.commodity.localeCompare(b.commodity);
         if (cc !== 0) return cc;
       }
@@ -325,7 +389,8 @@
     var titleEl = document.getElementById('wf-chart-title');
     var subEl = document.getElementById('wf-chart-sub');
     var lvlName = levelLabels[chosenLevel] || 'Sub-area';
-    if (titleEl) titleEl.textContent = (chosenComm === '__all__' ? 'All Trades' : chosenComm) + ' \u2014 ' + lvlName + ' Progression';
+    var tradeLabel = isSingleTrade ? selectedComms[0] : (selectedComms.length + ' Trades');
+    if (titleEl) titleEl.textContent = tradeLabel + ' \u2014 ' + lvlName + ' Progression';
     if (subEl) subEl.textContent = 'Rows ordered by earliest activity start \u2014 bars show work windows (' + lvlName + ' level)';
 
     var yLabels = rows.map(function (r) { return r.label; });
@@ -395,14 +460,14 @@
       legend: { font: { color: '#8899bb' }, orientation: 'h', y: 1.05 },
     });
 
-    renderWorkfrontSummary(rows, chosenComm, chosenScen, chosenLevel, MS_PER_DAY);
+    renderWorkfrontSummary(rows, isSingleTrade ? selectedComms[0] : null, chosenScen, chosenLevel, MS_PER_DAY);
   };
 
-  function renderWorkfrontSummary(rows, comm, scenario, level, MS_PER_DAY) {
+  function renderWorkfrontSummary(rows, singleComm, scenario, level, MS_PER_DAY) {
     var el = document.getElementById('wf-sequence-summary');
     if (!el) return;
 
-    if (comm === '__all__' || rows.length === 0 || level === 'task') {
+    if (!singleComm || rows.length === 0 || level === 'task') {
       el.style.display = 'none';
       return;
     }
@@ -422,7 +487,7 @@
 
     var resequenced = bSeqStr !== oSeqStr;
 
-    var html = '<div style="font-size:13px;font-weight:700;margin-bottom:8px">' + comm + ' Progression Order</div>';
+    var html = '<div style="font-size:13px;font-weight:700;margin-bottom:8px">' + singleComm + ' Progression Order</div>';
     if (scenario === 'both' || scenario === 'baseline') {
       html += '<div class="cp-summary-row"><span class="cp-summary-label">Baseline:</span> <span>' + (bSeqStr || '\u2014') + '</span> <span style="color:var(--text-dim);margin-left:8px">(' + seqB.length + ' ' + unitName + ')</span></div>';
     }

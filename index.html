@@ -146,11 +146,12 @@
           <div class="section-title">Workfront Sequences</div>
           <div class="section-sub">Block-by-block progression showing how each trade moves across the site</div>
         </div>
-        <div class="filter-bar" style="margin-bottom:12px">
-          <span class="filter-label">Trade:</span>
-          <select class="filter-select" id="wf-commodity-filter" onchange="ATT.updateWorkfrontChart()">
-            <option value="__all__">All Trades</option>
-          </select>
+        <div class="filter-bar" style="margin-bottom:12px;flex-wrap:wrap;gap:8px 0">
+          <span class="filter-label">Trades:</span>
+          <div class="wf-multi-wrap" id="wf-commodity-multi">
+            <button type="button" class="wf-multi-btn" id="wf-multi-btn" onclick="ATT.toggleTradeDropdown()">All Trades &#9662;</button>
+            <div class="wf-multi-dropdown" id="wf-multi-dropdown"></div>
+          </div>
           <span class="filter-label" style="margin-left:16px">WBS Level:</span>
           <select class="filter-select" id="wf-level-filter" onchange="ATT.updateWorkfrontChart()">
             <option value="block">Block (e.g. 1, 2, 3)</option>
