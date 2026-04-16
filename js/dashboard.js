@@ -160,11 +160,71 @@
 
   function renderLeverDetail(lever) {
     if (lever.type === 'resequencing') {
-      return '<div class="lever-path-compare">' +
-        '<div class="lever-path-row"><span class="lever-path-label">Baseline:</span> <span>' + (lever.baselinePath || '\u2014') + '</span></div>' +
-        '<div class="lever-path-row"><span class="lever-path-label">Optimized:</span> <span>' + (lever.optimizedPath || '\u2014') + '</span></div>' +
-        (lever.changed ? '<div class="lever-reseq-flag">\u26A0 Installation order changed between scenarios</div>' : '<div style="color:var(--text-dim);font-size:11px;margin-top:6px">Same progression order in both scenarios</div>') +
-      '</div>';
+      var bBlocks = lever.baselineBlocks || [];
+      var oBlocks = lever.optimizedBlocks || [];
+
+      if (bBlocks.length === 0 && oBlocks.length === 0) {
+        return '<div style="color:var(--text-dim);font-size:12px">No block data available</div>';
+      }
+
+      var bPosMap = {};
+      for (var bi = 0; bi < bBlocks.length; bi++) bPosMap[bBlocks[bi]] = bi;
+      var oPosMap = {};
+      for (var oi = 0; oi < oBlocks.length; oi++) oPosMap[oBlocks[oi]] = oi;
+
+      var allBlocks = {};
+      bBlocks.forEach(function (b) { allBlocks[b] = true; });
+      oBlocks.forEach(function (b) { allBlocks[b] = true; });
+
+      function pillCls(block, posMap, otherPosMap, idx) {
+        var otherIdx = otherPosMap[block];
+        if (otherIdx === undefined) return 'seq-pill seq-new';
+        if (otherIdx === idx) return 'seq-pill seq-same';
+        if (otherIdx > idx) return 'seq-pill seq-earlier';
+        return 'seq-pill seq-later';
+      }
+
+      var bPills = bBlocks.map(function (b, i) {
+        return '<div class="' + pillCls(b, bPosMap, oPosMap, i) + '"><span class="seq-pos">' + (i + 1) + '</span>' + b + '</div>';
+      }).join('<span class="seq-arrow">\u2192</span>');
+
+      var oPills = oBlocks.map(function (b, i) {
+        return '<div class="' + pillCls(b, oPosMap, bPosMap, i) + '"><span class="seq-pos">' + (i + 1) + '</span>' + b + '</div>';
+      }).join('<span class="seq-arrow">\u2192</span>');
+
+      var movedCount = 0;
+      oBlocks.forEach(function (b, i) { if (bPosMap[b] !== undefined && bPosMap[b] !== i) movedCount++; });
+
+      var tableRows = '';
+      var allBlockList = Object.keys(allBlocks).sort(function (a, b) {
+        var aPos = bPosMap[a] !== undefined ? bPosMap[a] : 999;
+        var bPos = bPosMap[b] !== undefined ? bPosMap[b] : 999;
+        return aPos - bPos;
+      });
+      allBlockList.forEach(function (block) {
+        var bIdx = bPosMap[block];
+        var oIdx = oPosMap[block];
+        var bPos = bIdx !== undefined ? '#' + (bIdx + 1) : '\u2014';
+        var oPos = oIdx !== undefined ? '#' + (oIdx + 1) : '\u2014';
+        var changeTxt = '', changeCls = '';
+        if (bIdx === undefined) { changeTxt = 'New'; changeCls = 'seq-badge-new'; }
+        else if (oIdx === undefined) { changeTxt = 'Removed'; changeCls = 'seq-badge-removed'; }
+        else if (bIdx === oIdx) { changeTxt = 'Same'; changeCls = 'seq-badge-same'; }
+        else if (oIdx < bIdx) { changeTxt = '\u25B2 ' + (bIdx - oIdx) + ' earlier'; changeCls = 'seq-badge-earlier'; }
+        else { changeTxt = '\u25BC ' + (oIdx - bIdx) + ' later'; changeCls = 'seq-badge-later'; }
+        tableRows += '<tr><td>' + block + '</td><td>' + bPos + '</td><td>' + oPos + '</td><td><span class="' + changeCls + '">' + changeTxt + '</span></td></tr>';
+      });
+
+      return '<div class="lever-reseq-visual">' +
+        '<div class="seq-track"><span class="seq-track-label">Baseline</span><div class="seq-pills">' + bPills + '</div></div>' +
+        '<div class="seq-track"><span class="seq-track-label">Optimized</span><div class="seq-pills">' + oPills + '</div></div>' +
+      '</div>' +
+      (lever.changed
+        ? '<div class="lever-reseq-flag" style="margin:10px 0">\u26A0 ' + movedCount + ' block' + (movedCount !== 1 ? 's' : '') + ' changed position</div>'
+        : '<div style="color:var(--text-dim);font-size:11px;margin:8px 0">Same progression order in both scenarios</div>') +
+      '<div class="epc-crew-table" style="margin-top:8px"><table>' +
+        '<thead><tr><th>Block</th><th>Baseline Pos</th><th>Optimized Pos</th><th>Change</th></tr></thead>' +
+        '<tbody>' + tableRows + '</tbody></table></div>';
     }
 
     if (lever.type === 'execution_path' && lever.details) {

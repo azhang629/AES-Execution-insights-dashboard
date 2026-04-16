@@ -176,6 +176,8 @@
         summary: changed ? 'Installation order changed between scenarios' : 'Same installation order in both scenarios',
         baselinePath: bStr,
         optimizedPath: oStr,
+        baselineBlocks: basePath.map(function (p) { return p.block; }),
+        optimizedBlocks: optPath.map(function (p) { return p.block; }),
         changed: changed,
         count: withBlock.length,
       });

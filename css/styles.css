@@ -415,12 +415,58 @@ body {
   background: var(--surface2);
 }
 
-/* ── Lever: Resequencing paths ── */
-.lever-path-compare { font-size: 12.5px; line-height: 1.8; }
-.lever-path-row { display: flex; gap: 8px; align-items: baseline; }
-.lever-path-label {
-  font-weight: 700; color: var(--text-muted); min-width: 75px; flex-shrink: 0;
+/* ── Lever: Resequencing visual ── */
+.lever-reseq-visual { margin-bottom: 6px; }
+.seq-track {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
 }
+.seq-track-label {
+  font-size: 11px; font-weight: 700; color: var(--text-muted);
+  min-width: 70px; flex-shrink: 0;
+}
+.seq-pills {
+  display: flex; align-items: center; gap: 4px; flex-wrap: wrap;
+}
+.seq-pill {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 4px 10px; border-radius: 6px; font-size: 11.5px; font-weight: 600;
+  white-space: nowrap;
+}
+.seq-pos {
+  font-size: 9px; font-weight: 700; opacity: .6; margin-right: 2px;
+}
+.seq-pill.seq-same {
+  background: var(--surface3); color: var(--text-muted); border: 1px solid var(--border);
+}
+.seq-pill.seq-earlier {
+  background: rgba(34,211,168,.12); color: #22d3a8; border: 1px solid rgba(34,211,168,.3);
+}
+.seq-pill.seq-later {
+  background: rgba(245,158,11,.1); color: #f59e0b; border: 1px solid rgba(245,158,11,.3);
+}
+.seq-pill.seq-new {
+  background: rgba(96,165,250,.12); color: #60a5fa; border: 1px solid rgba(96,165,250,.3);
+}
+.seq-arrow { color: var(--text-dim); font-size: 11px; margin: 0 1px; }
+
+.seq-badge-same { color: var(--text-dim); font-size: 11px; }
+.seq-badge-earlier {
+  display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 10px; font-weight: 700;
+  background: rgba(34,211,168,.1); color: #22d3a8;
+}
+.seq-badge-later {
+  display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 10px; font-weight: 700;
+  background: rgba(245,158,11,.1); color: #f59e0b;
+}
+.seq-badge-new {
+  display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 10px; font-weight: 700;
+  background: rgba(96,165,250,.1); color: #60a5fa;
+}
+.seq-badge-removed {
+  display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 10px; font-weight: 700;
+  background: rgba(239,68,68,.1); color: #fb7185;
+}
+
 .lever-reseq-flag {
   margin-top: 8px; padding: 6px 10px; border-radius: 6px; font-size: 11.5px;
   background: rgba(245,158,11,.07); border: 1px solid rgba(245,158,11,.2); color: var(--warn);
