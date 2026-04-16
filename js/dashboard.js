@@ -712,6 +712,23 @@
       }
     }
 
+    var bAUC = 0, oAUC = 0;
+    for (var ai = 0; ai < bVals.length; ai++) bAUC += bVals[ai];
+    for (var aj = 0; aj < oVals.length; aj++) oAUC += oVals[aj];
+    bAUC = Math.round(bAUC);
+    oAUC = Math.round(oAUC);
+    var aucDiff = oAUC - bAUC;
+    var aucPct = bAUC > 0 ? ((aucDiff / bAUC) * 100).toFixed(1) : '0';
+
+    var aucEl = document.getElementById('crew-auc-stats');
+    if (aucEl) {
+      aucEl.innerHTML =
+        '<div class="stat-card accent"><div class="stat-label">Baseline Total Worker-Days</div><div class="stat-value">' + bAUC.toLocaleString() + '</div><div class="stat-detail">Area under the baseline crew curve</div></div>' +
+        '<div class="stat-card success"><div class="stat-label">Optimized Total Worker-Days</div><div class="stat-value">' + oAUC.toLocaleString() + '</div><div class="stat-detail">Area under the optimized crew curve' +
+          (aucDiff !== 0 ? ' (' + (aucDiff > 0 ? '+' : '') + aucDiff.toLocaleString() + ', ' + (aucDiff > 0 ? '+' : '') + aucPct + '%)' : '') +
+        '</div></div>';
+    }
+
     var annotations = [];
     if (bPeak > 0 && bPeakDate) {
       annotations.push({ x: bPeakDate, y: bPeak, text: 'Baseline peak: ' + Math.round(bPeak), showarrow: true, arrowhead: 2, ax: -50, ay: -30, font: { color: '#4f8ef7', size: 11 }, arrowcolor: '#4f8ef7' });

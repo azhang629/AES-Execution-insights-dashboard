@@ -80,7 +80,7 @@
   </div>
   <div class="tab-nav">
     <button class="tab-btn active" data-tab="executive">Executive Summary</button>
-    <button class="tab-btn" data-tab="crew">Crew Changes</button>
+    <button class="tab-btn" data-tab="crew">Crew Curve</button>
     <button class="tab-btn" data-tab="critical">Critical Path</button>
   </div>
   <div id="mc-warning" style="display:none;margin:12px 24px 0;padding:12px 18px;border-radius:8px;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.35);color:#f59e0b;font-size:13px;line-height:1.5"></div>
@@ -114,11 +114,11 @@
         </div>
       </div>
 
-      <!-- TAB: Crew Changes -->
+      <!-- TAB: Crew Curve -->
       <div class="tab-panel" id="tab-crew">
         <div class="section-header">
-          <div class="section-title">Crew Changes</div>
-          <div class="section-sub">How crew peaks and ramp-up timing differ between baseline and optimized</div>
+          <div class="section-title">Crew Curve</div>
+          <div class="section-sub">Crew loading over time &mdash; baseline vs optimized</div>
         </div>
         <div class="chart-wrap" id="crew-curve-wrap" style="display:none">
           <div class="chart-title">Crew Curve &mdash; Baseline vs Optimized</div>
@@ -129,6 +129,7 @@
               <option value="__total__">All Crews (Total Site)</option>
             </select>
           </div>
+          <div class="stats-grid" id="crew-auc-stats" style="margin-bottom:12px;grid-template-columns:1fr 1fr"></div>
           <div id="chart-crew-curve" style="height:420px"></div>
         </div>
         <div id="crew-ramp-summary" style="display:none"></div>
