@@ -111,17 +111,40 @@
     return null;
   }
 
-  function predTaskName(sched, predId) {
-    var t = lookupPredTask(sched, predId);
-    return t ? t.task_name : predId;
-  }
-
   function resolveName(predId, primary, secondary) {
     var t = lookupPredTask(primary, predId);
     if (t) return t.task_name;
     var t2 = lookupPredTask(secondary, predId);
     if (t2) return t2.task_name;
     return predId;
+  }
+
+  function normalizeName(name) {
+    return (name || '').toLowerCase().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+
+  function fuzzyMatch(a, b) {
+    if (a === b) return true;
+    var na = normalizeName(a), nb = normalizeName(b);
+    if (na === nb) return true;
+    if (!na || !nb) return false;
+    if (na.indexOf(nb) >= 0 || nb.indexOf(na) >= 0) return true;
+    var ta = na.split(' '), tb = nb.split(' ');
+    var maxLen = Math.max(ta.length, tb.length);
+    if (maxLen < 2) return false;
+    var shared = 0;
+    for (var i = 0; i < ta.length; i++) {
+      if (tb.indexOf(ta[i]) >= 0) shared++;
+    }
+    return shared / maxLen >= 0.7;
+  }
+
+  function findFuzzyMatch(name, nameSet) {
+    var keys = Object.keys(nameSet);
+    for (var i = 0; i < keys.length; i++) {
+      if (fuzzyMatch(name, keys[i])) return keys[i];
+    }
+    return null;
   }
 
   function comparePredecessors(diff, baseline, optimized) {
@@ -144,18 +167,26 @@
     }
 
     var items = [];
+    var matchedO = {};
     var bKeys = Object.keys(bNames);
     for (var bi = 0; bi < bKeys.length; bi++) {
       var k = bKeys[bi];
       if (oNames[k]) {
         items.push({ name: shortName(k), status: 'same' });
+        matchedO[k] = true;
       } else {
-        items.push({ name: shortName(k), status: 'deleted' });
+        var fuzzyHit = findFuzzyMatch(k, oNames);
+        if (fuzzyHit && !matchedO[fuzzyHit]) {
+          items.push({ name: shortName(k), status: 'same' });
+          matchedO[fuzzyHit] = true;
+        } else {
+          items.push({ name: shortName(k), status: 'deleted' });
+        }
       }
     }
     var oKeys = Object.keys(oNames);
     for (var oi = 0; oi < oKeys.length; oi++) {
-      if (!bNames[oKeys[oi]]) {
+      if (!matchedO[oKeys[oi]] && !bNames[oKeys[oi]] && !findFuzzyMatch(oKeys[oi], bNames)) {
         items.push({ name: shortName(oKeys[oi]), status: 'new' });
       }
     }
