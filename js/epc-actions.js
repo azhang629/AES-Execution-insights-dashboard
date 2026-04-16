@@ -311,10 +311,11 @@
       }
       var bGroups = findConcurrent(allWithDates, 'bStart', 'bEnd');
       var oGroups = findConcurrent(allWithDates, 'oStart', 'oEnd');
-      var bParCount = bGroups.filter(function (g) { return g.blocks.length > 1; }).length;
-      var oParCount = oGroups.filter(function (g) { return g.blocks.length > 1; }).length;
+      var bMaxPar = 0, oMaxPar = 0;
+      bGroups.forEach(function (g) { if (g.blocks.length > bMaxPar) bMaxPar = g.blocks.length; });
+      oGroups.forEach(function (g) { if (g.blocks.length > oMaxPar) oMaxPar = g.blocks.length; });
 
-      var parLabel = 'Deploy ' + crewName + ' across multiple blocks simultaneously — increase concurrent workfronts from ' + bParCount + ' to ' + oParCount + ' groups';
+      var parLabel = 'Deploy ' + crewName + ' across multiple blocks simultaneously — up to ' + oMaxPar + ' blocks running in parallel vs ' + bMaxPar + ' in baseline';
       levers.push({
         type: 'parallel',
         shortLabel: 'Parallel Execution',
