@@ -61,13 +61,15 @@
       y: sortedTactics.map(function (t) { return t.name; }),
       marker: { color: sortedTactics.map(function (t) { return TACTIC_COLORS[t.name] || '#4f8ef7'; }) },
       text: sortedTactics.map(function (t) { return t.days + 'd \u00B7 ' + t.count + ' activities'; }),
-      textposition: 'outside',
+      textposition: 'inside',
+      insidetextanchor: 'end',
+      textfont: { size: 11, color: '#ffffff' },
       hovertemplate: '<b>%{y}</b><br>~%{x} days<extra></extra>',
     }], {
-      xaxis: { title: 'Schedule Days Recovered', color: '#8899bb', gridcolor: '#2a3050' },
-      yaxis: { autorange: 'reversed', color: '#e2e8f0', tickfont: { size: 10 }, automargin: true },
-      margin: { l: 10, r: 60, t: 10, b: 40 },
-      height: Math.max(280, sortedTactics.length * 36 + 50),
+      xaxis: { title: 'Schedule Days Recovered', color: '#8899bb', gridcolor: '#2a3050', automargin: true },
+      yaxis: { autorange: 'reversed', color: '#e2e8f0', tickfont: { size: 11 }, automargin: true },
+      margin: { l: 10, r: 20, t: 10, b: 40 },
+      height: Math.max(280, sortedTactics.length * 50 + 60),
     });
 
     // Commodity donut
@@ -89,8 +91,8 @@
       sort: false,
     }], {
       showlegend: true,
-      legend: { font: { color: '#e2e8f0', size: 11 }, orientation: 'h', y: -0.15 },
-      margin: { l: 10, r: 10, t: 10, b: 50 },
+      legend: { font: { color: '#e2e8f0', size: 10 }, orientation: 'v', x: 1.05, y: 0.5, xanchor: 'left' },
+      margin: { l: 10, r: 10, t: 10, b: 10 },
       height: 280,
     });
 
