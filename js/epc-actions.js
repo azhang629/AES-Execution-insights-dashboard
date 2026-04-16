@@ -119,29 +119,54 @@
     var pulledForward = crewShifts.filter(function (c) { return c.shiftDays > 0; });
     var pushedBack = crewShifts.filter(function (c) { return c.shiftDays < 0; });
 
-    if (siteShift && (pulledForward.length > 0 || pushedBack.length > 0)) {
-      var earliestODate = null;
+    // Always include a crew ramp-up action
+    (function () {
+      var bullets = [];
+      var title, maxShift = 0, earliestODate = null;
+
       crewShifts.forEach(function (c) {
+        if (Math.abs(c.shiftDays) > maxShift) maxShift = Math.abs(c.shiftDays);
         if (!earliestODate || c.oDate < earliestODate) earliestODate = c.oDate;
       });
-      var maxShift = 0;
-      crewShifts.forEach(function (c) { if (Math.abs(c.shiftDays) > maxShift) maxShift = Math.abs(c.shiftDays); });
+
+      if (siteShift) {
+        var siteDelta = siteShift.days;
+        if (siteDelta > 0) {
+          title = 'Crew ramp-up accelerated \u2014 site peak pulled forward ' + siteDelta + ' days';
+        } else if (siteDelta < 0) {
+          title = 'Crew ramp-up shifted \u2014 site peak moves ' + Math.abs(siteDelta) + ' days later';
+        } else {
+          title = 'Crew ramp-up timing unchanged \u2014 peak crew count adjusted';
+        }
+        bullets.push('Site peak moves from ' + fmtDate(siteShift.bDate) + ' to ' + fmtDate(siteShift.oDate) + ' (' + siteShift.oPeak + ' workers vs ' + siteShift.bPeak + ' baseline)');
+      } else {
+        title = 'Crew ramp-up accelerated';
+        bullets.push('Optimized schedule adjusts crew mobilization timing across trades');
+      }
+
+      bullets.push('Activity resequencing compresses the ramp-up curve \u2014 trades reach peak manning earlier, shortening the critical path');
+
+      if (pulledForward.length > 0 || pushedBack.length > 0) {
+        bullets.push(pulledForward.length + ' crew(s) peak earlier, ' + pushedBack.length + ' shift later');
+        if (maxShift > 0) title = title.replace(/accelerated/, 'accelerated \u2014 peaks shifted up to ' + maxShift + ' days');
+      }
+
+      var peakCount = siteShift ? siteShift.oPeak : '';
+      var fieldNote = peakCount
+        ? 'Confirm all subs can mobilize to peak manning by their new dates. Plan site infrastructure (laydown, parking, break areas) for ' + peakCount + ' workers' + (earliestODate ? ' by ' + fmtDate(earliestODate) : '') + '.'
+        : 'Confirm all subs can mobilize to peak manning by their new dates.';
 
       actions.push({
-        title: 'Crew ramp-up accelerated \u2014 peaks pulled forward up to ' + maxShift + ' days',
-        bullets: [
-          'Site peak moves from ' + fmtDate(siteShift.bDate) + ' to ' + fmtDate(siteShift.oDate) + ' (' + siteShift.oPeak + ' workers vs ' + siteShift.bPeak + ' baseline)',
-          'Activity resequencing compresses the ramp-up curve \u2014 trades reach peak manning earlier, shortening the critical path',
-          pulledForward.length + ' crew(s) peak earlier, ' + pushedBack.length + ' shift later',
-        ],
-        crewShifts: crewShifts.sort(function (a, b) { return b.shiftDays - a.shiftDays; }),
-        fieldAction: 'Confirm all subs can mobilize to peak manning by their new dates. Plan site infrastructure (laydown, parking, break areas) for ' + siteShift.oPeak + ' workers by ' + fmtDate(earliestODate) + '.',
+        title: title,
+        bullets: bullets,
+        crewShifts: crewShifts.length > 0 ? crewShifts.sort(function (a, b) { return b.shiftDays - a.shiftDays; }) : [],
+        fieldAction: fieldNote,
         priority: 'High',
-        impact: maxShift,
+        impact: maxShift || 10,
         weakLogic: false,
         weakLogicNote: '',
       });
-    }
+    })();
 
     // ── 2. Parallel Execution (Logic FS -> SS) ──
     var overlapDiffs = preMC.filter(function (d) {
