@@ -76,17 +76,19 @@
       .sort(function (a, b) { return b.val - a.val; }).slice(0, 8);
     var commTotal = commData.reduce(function (s, c) { return s + c.val; }, 0) || 1;
     plotDark('chart-commodity', [{
-      type: 'bar', orientation: 'h',
-      y: commData.map(function (c) { return c.name; }),
-      x: commData.map(function (c) { return +(c.val / commTotal * 100).toFixed(1); }),
-      marker: { color: ['#4f8ef7', '#22d3a8', '#f59e0b', '#a78bfa', '#f472b6', '#60a5fa', '#34d399', '#fb7185'] },
-      text: commData.map(function (c) { return (c.val / commTotal * 100).toFixed(1) + '%'; }),
+      type: 'pie',
+      labels: commData.map(function (c) { return c.name; }),
+      values: commData.map(function (c) { return c.val; }),
+      hole: 0.45,
+      marker: { colors: ['#4f8ef7', '#22d3a8', '#f59e0b', '#a78bfa', '#f472b6', '#60a5fa', '#34d399', '#fb7185'] },
+      textinfo: 'label+percent',
       textposition: 'outside',
-      hovertemplate: '<b>%{y}</b><br>%{text}<extra></extra>',
+      textfont: { size: 11, color: '#e2e8f0' },
+      hovertemplate: '<b>%{label}</b><br>%{percent}<extra></extra>',
+      sort: false,
     }], {
-      xaxis: { title: '% of total schedule improvement', color: '#8899bb', gridcolor: '#2a3050', ticksuffix: '%' },
-      yaxis: { autorange: 'reversed', color: '#e2e8f0', tickfont: { size: 11 }, automargin: true },
-      margin: { l: 10, r: 80, t: 10, b: 40 },
+      showlegend: false,
+      margin: { l: 20, r: 20, t: 20, b: 20 },
       height: 400,
     });
 
