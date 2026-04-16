@@ -381,17 +381,7 @@
         earliest: earliest,
       };
     });
-    if (chosenLevel === 'task') {
-      rows.sort(function (a, b) { return a.earliest - b.earliest; });
-    } else {
-      rows.sort(function (a, b) {
-        if (!isSingleTrade) {
-          var cc = a.commodity.localeCompare(b.commodity);
-          if (cc !== 0) return cc;
-        }
-        return a.earliest - b.earliest;
-      });
-    }
+    rows.sort(function (a, b) { return a.earliest - b.earliest; });
     for (var ri = 0; ri < rows.length; ri++) rows[ri].seq = ri + 1;
 
     var showB = chosenScen === 'both' || chosenScen === 'baseline';
