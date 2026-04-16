@@ -168,6 +168,7 @@
       bMCDate: bMCDate, oMCDate: oMCDate, bCODDate: bCODDate, oCODDate: oCODDate,
       bSubstDate: bSubstDate, oSubstDate: oSubstDate, mcWarning: mcWarning,
       bCrewData: bCrewData, oCrewData: oCrewData,
+      baseline: baseline, optimized: optimized,
     };
     var epcActions = ATT.generateEPCActions(aggregations, classifiedDiffs, partialR);
 
@@ -199,7 +200,8 @@
     } else {
       document.getElementById('gain-badge').textContent = totalGainDays + ' days saved';
     }
-    document.getElementById('ti-tactics').textContent = Object.keys(aggregations.byTactic).length;
+    var tiEl = document.getElementById('ti-tactics');
+    if (tiEl) tiEl.textContent = Object.keys(aggregations.byTactic).length;
 
     if (mcWarning) {
       var warnEl = document.getElementById('mc-warning');
@@ -241,7 +243,8 @@
     document.getElementById('upload-screen').style.display = 'flex';
     var mcWarnEl = document.getElementById('mc-warning');
     if (mcWarnEl) { mcWarnEl.style.display = 'none'; mcWarnEl.textContent = ''; }
-    document.getElementById('agent-messages').innerHTML = '<div class="msg-welcome"><strong>Schedule Analyst ready</strong>Ask me anything about the schedule changes.</div>';
+    var agentEl = document.getElementById('agent-messages');
+    if (agentEl) agentEl.innerHTML = '';
   };
 
 })(window.ATT = window.ATT || {});
