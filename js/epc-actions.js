@@ -362,9 +362,10 @@
         var bGap = d.logic.bDrivingLagDays !== null ? Math.round(d.logic.bDrivingLagDays) : null;
         var oGap = d.logic.oDrivingLagDays !== null ? Math.round(d.logic.oDrivingLagDays) : null;
         // Infer effective relationship from gap behavior since ALICE CSV may not label SS explicitly
+        // If baseline had a significant positive gap and optimized gap drops to 0 or below,
+        // the successor no longer waits for the predecessor to finish — effectively SS
         var bEffective = (bGap !== null && bGap < 0) ? 'SS' : 'FS';
-        var oEffective = (oGap !== null && oGap < 0) ? 'SS' : 'FS';
-        // Also check the stored rel type in case the CSV did include it
+        var oEffective = (oGap !== null && oGap <= 0 && bGap !== null && bGap > 1) ? 'SS' : (oGap !== null && oGap < 0) ? 'SS' : 'FS';
         var bRel = d.logic.bDrivingRelType || 'FS';
         var oRel = d.logic.oDrivingRelType || 'FS';
         if (bRel === 'SS') bEffective = 'SS';
