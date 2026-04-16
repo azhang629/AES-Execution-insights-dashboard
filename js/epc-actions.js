@@ -33,38 +33,51 @@
   }
 
   function normCrew(s) {
-    return (s || '').toLowerCase().replace(/_/g, ' ').replace(/\s+crew\s*$/i, '').replace(/\s+/g, ' ').trim();
+    return (s || '').toLowerCase().replace(/_/g, ' ').replace(/\s+/g, ' ').trim();
   }
 
   function matchCrewToDiffs(crewName, diffs) {
-    var cn = normCrew(shortName(crewName));
-    if (!cn) return [];
+    var rawCN = shortName(crewName);
+    if (!rawCN) return [];
 
-    // 1. Match by resource/crew assignment on the task (most accurate — same ALICE source)
+    // 1. Direct resource column match — "Crew: X" columns in the schedule CSV
+    //    rsrc_name is the column header with "Crew: " stripped, so it should
+    //    exactly match the crew names from the ALICE crew CSV.
     var byResource = diffs.filter(function (d) {
-      var res = (d.b && d.b.resources) || [];
-      if (!res.length && d.o) res = d.o.resources || [];
-      return res.some(function (r) {
-        var rn = normCrew(r.rsrc_name);
-        return rn === cn || rn.indexOf(cn) >= 0 || cn.indexOf(rn) >= 0;
+      var bRes = (d.b && d.b.resources) || [];
+      var oRes = (d.o && d.o.resources) || [];
+      return bRes.concat(oRes).some(function (r) {
+        return normCrew(r.rsrc_name) === normCrew(rawCN);
       });
     });
     if (byResource.length > 0) return byResource;
 
-    // 2. Match by trade field on original task
+    // 2. Fuzzy resource match (contains)
+    var cn = normCrew(rawCN).replace(/\s+crew$/i, '');
+    var byResFuzzy = diffs.filter(function (d) {
+      var bRes = (d.b && d.b.resources) || [];
+      var oRes = (d.o && d.o.resources) || [];
+      return bRes.concat(oRes).some(function (r) {
+        var rn = normCrew(r.rsrc_name).replace(/\s+crew$/i, '');
+        return rn.indexOf(cn) >= 0 || cn.indexOf(rn) >= 0;
+      });
+    });
+    if (byResFuzzy.length > 0) return byResFuzzy;
+
+    // 3. Match by trade field on original task
     var byTrade = diffs.filter(function (d) {
       var t = normCrew(d.b ? d.b.trade : '');
       return t && (t === cn || t.indexOf(cn) >= 0 || cn.indexOf(t) >= 0);
     });
     if (byTrade.length > 0) return byTrade;
 
-    // 3. Exact commodity match
+    // 4. Exact commodity match
     var exact = diffs.filter(function (d) {
       return d.commodity && normCrew(d.commodity) === cn;
     });
     if (exact.length > 0) return exact;
 
-    // 4. Contains match on commodity
+    // 5. Contains match on commodity
     var contains = diffs.filter(function (d) {
       if (!d.commodity) return false;
       var comm = normCrew(d.commodity);
@@ -72,7 +85,7 @@
     });
     if (contains.length > 0) return contains;
 
-    // 5. Token overlap — at least 2 shared words
+    // 6. Token overlap — at least 2 shared words
     var cnTokens = cn.split(' ');
     if (cnTokens.length >= 2) {
       return diffs.filter(function (d) {
