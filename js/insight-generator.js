@@ -83,18 +83,6 @@
       insights.push({ tactic: t.name, text: text, exec: exec, days: Math.round(t.scaledDays) });
     }
 
-    var earliestCritical = diffs
-      .filter(function (d) { return d.oCritical && d.finishVar < -1; })
-      .sort(function (a, b) { return a.oStart - b.oStart; })[0];
-    if (earliestCritical) {
-      insights.push({
-        tactic: 'Execution Readiness',
-        text: 'The optimized plan requires the first critical-path activity to start by ' + fmtDate(earliestCritical.oStart) + ' \u2014 earlier than the baseline. The earliest milestone that must move is ' + earliestCritical.task_name.split(' - ')[0] + '.',
-        exec: 'Mobilization, procurement, and permitting must all align to support this earlier start date.',
-        days: null,
-      });
-    }
-
     return insights;
   };
 
