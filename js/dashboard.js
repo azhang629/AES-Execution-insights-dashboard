@@ -393,7 +393,18 @@
     if (titleEl) titleEl.textContent = tradeLabel + ' \u2014 ' + lvlName + ' Progression';
     if (subEl) subEl.textContent = 'Rows ordered by earliest activity start \u2014 bars show work windows (' + lvlName + ' level)';
 
-    var yLabels = rows.map(function (r) { return r.label; });
+    var MAX_ROWS = 150;
+    var truncated = false;
+    if (rows.length > MAX_ROWS) {
+      truncated = true;
+      rows = rows.slice(0, MAX_ROWS);
+    }
+
+    var LABEL_MAX = chosenLevel === 'task' ? 50 : 80;
+    var yLabels = rows.map(function (r) {
+      var lbl = r.label;
+      return lbl.length > LABEL_MAX ? lbl.substring(0, LABEL_MAX) + '\u2026' : lbl;
+    });
     var traces = [];
 
     var bothScenarios = showB && showO;
@@ -444,21 +455,36 @@
     for (var li = 0; li < yLabels.length; li++) {
       if (yLabels[li].length > maxLabelLen) maxLabelLen = yLabels[li].length;
     }
-    var leftMargin = Math.min(400, Math.max(100, maxLabelLen * 7 + 20));
-    var ROW_H = 40;
+    var leftMargin = Math.min(420, Math.max(100, maxLabelLen * 6.5 + 20));
+    var ROW_H = chosenLevel === 'task' ? 26 : 40;
+    var fontSize = chosenLevel === 'task' ? 9 : 11;
+    var lineW_b = chosenLevel === 'task' ? (bothScenarios ? 12 : 16) : bLineW;
+    var lineW_o = chosenLevel === 'task' ? (bothScenarios ? 6 : 16) : oLineW;
     var chartH = Math.max(300, rows.length * ROW_H + 80);
+
+    if (traces.length > 0 && traces[0].name === 'Baseline') traces[0].line.width = lineW_b;
+    if (traces.length > 1 && traces[1].name === 'Optimized') traces[1].line.width = lineW_o;
+    if (traces.length === 1 && traces[0].name === 'Optimized') traces[0].line.width = lineW_o;
+
+    var wrapEl = document.getElementById('chart-workfront-wrap');
+    if (wrapEl) wrapEl.style.maxHeight = Math.min(chartH, 700) + 'px';
 
     plotDark('chart-workfront', traces, {
       xaxis: { type: 'date', color: '#8899bb', gridcolor: '#2a3050', automargin: true },
       yaxis: {
         categoryorder: 'array', categoryarray: yLabels.slice().reverse(),
-        color: '#e2e8f0', tickfont: { size: 11 }, automargin: true,
+        color: '#e2e8f0', tickfont: { size: fontSize }, automargin: true,
       },
       margin: { l: leftMargin, r: 30, t: 10, b: 50 },
       height: chartH,
       hovermode: 'closest',
       legend: { font: { color: '#8899bb' }, orientation: 'h', y: 1.05 },
     });
+
+    var footerEl = document.getElementById('wf-chart-sub');
+    if (truncated && footerEl) {
+      footerEl.textContent += ' (showing first ' + MAX_ROWS + ' of ' + (_wfCache.rawTasks.length) + ' rows)';
+    }
 
     renderWorkfrontSummary(rows, isSingleTrade ? selectedComms[0] : null, chosenScen, chosenLevel, MS_PER_DAY);
   };
