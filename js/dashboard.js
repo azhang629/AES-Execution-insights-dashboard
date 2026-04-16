@@ -249,15 +249,16 @@
     if (lever.type === 'parallel') {
       function renderParGroups(groups, label) {
         if (!groups || !groups.length) return '<div style="color:var(--text-dim);font-size:11px">No concurrent blocks</div>';
-        return '<div class="seq-track" style="margin-bottom:6px"><span class="seq-track-label" style="min-width:70px">' + label + '</span>' +
-          '<div class="seq-pills" style="flex-wrap:wrap;gap:4px">' +
+        return '<div class="seq-track" style="margin-bottom:6px;align-items:flex-start"><span class="seq-track-label" style="min-width:70px;flex-shrink:0">' + label + '</span>' +
+          '<div style="overflow-x:auto;max-width:100%;padding-bottom:4px">' +
+          '<div class="seq-pills" style="flex-wrap:nowrap;gap:4px;min-width:max-content">' +
           groups.map(function (g) {
             var cls = g.blocks.length > 1 ? 'seq-earlier' : 'seq-same';
-            return '<span class="seq-pill ' + cls + '" style="padding:3px 8px;font-size:11px">' +
+            return '<span class="seq-pill ' + cls + '" style="padding:3px 8px;font-size:11px;white-space:nowrap">' +
               g.blocks.join(' + ') +
             '</span>';
-          }).join('<span style="color:var(--text-dim);margin:0 2px">\u2192</span>') +
-          '</div></div>';
+          }).join('<span style="color:var(--text-dim);margin:0 2px;flex-shrink:0">\u2192</span>') +
+          '</div></div></div>';
       }
       return '<div class="seq-legend" style="margin-bottom:8px">' +
           '<span class="seq-pill seq-same" style="padding:2px 8px;font-size:10px">Sequential (1 block)</span>' +
@@ -428,41 +429,19 @@
         '<div class="stat-card warn"><div class="stat-label">Baseline TF\u22640</div><div class="stat-value">' + bZF + '</div><div class="stat-detail">Zero-float activities</div></div>' +
         '<div class="stat-card warn"><div class="stat-label">Optimized TF\u22640</div><div class="stat-value">' + oZF + '</div><div class="stat-detail">Zero-float activities</div></div>';
     } else {
-      var bZF2 = aliceZeroFloatPath(b).length;
-      var oZF2 = aliceZeroFloatPath(o).length;
+      var bZF2 = (b.zeroFloatPath || []).length;
+      var oZF2 = (o.zeroFloatPath || []).length;
+      var bSegs = b.cpmResult ? b.cpmResult.zeroFloat.segmentCount : 0;
+      var oSegs = o.cpmResult ? o.cpmResult.zeroFloat.segmentCount : 0;
       var bNC = ATT.recomputeNearCritical(b, _cpNCThreshold).length;
       var oNC = ATT.recomputeNearCritical(o, _cpNCThreshold).length;
       html =
-        '<div class="stat-card warn"><div class="stat-label">Baseline TF\u22640</div><div class="stat-value">' + bZF2 + '</div><div class="stat-detail">ALICE zero-float activities</div></div>' +
-        '<div class="stat-card warn"><div class="stat-label">Optimized TF\u22640</div><div class="stat-value">' + oZF2 + '</div><div class="stat-detail">ALICE zero-float activities</div></div>' +
+        '<div class="stat-card warn"><div class="stat-label">Baseline TF\u22640</div><div class="stat-value">' + bZF2 + '</div><div class="stat-detail">' + bSegs + ' segment' + (bSegs !== 1 ? 's' : '') + '</div></div>' +
+        '<div class="stat-card warn"><div class="stat-label">Optimized TF\u22640</div><div class="stat-value">' + oZF2 + '</div><div class="stat-detail">' + oSegs + ' segment' + (oSegs !== 1 ? 's' : '') + '</div></div>' +
         '<div class="stat-card accent"><div class="stat-label">Baseline Near-Crit</div><div class="stat-value">' + bNC + '</div><div class="stat-detail">0 < TF \u2264 ' + _cpNCThreshold + 'd</div></div>' +
         '<div class="stat-card accent"><div class="stat-label">Optimized Near-Crit</div><div class="stat-value">' + oNC + '</div><div class="stat-detail">0 < TF \u2264 ' + _cpNCThreshold + 'd</div></div>';
     }
     document.getElementById('cp-top-stats').innerHTML = html;
-  }
-
-  function aliceZeroFloatPath(sched) {
-    if (!sched.cpmResult) return [];
-    var sorted = sched.cpmResult.sorted;
-    var tasks = [];
-    for (var i = 0; i < sorted.length; i++) {
-      var t = sched.taskById[sorted[i]];
-      if (!t || !t.early_start || !t.early_end) continue;
-      var floatHr = t.total_float_hr;
-      if (floatHr == null) floatHr = 0;
-      if (floatHr <= 0) tasks.push(t);
-    }
-    tasks.sort(function (a, b) { return a.early_start - b.early_start; });
-    var result = [];
-    for (var j = 0; j < tasks.length; j++) {
-      var tk = tasks[j];
-      if (!result.length) { result.push(tk); continue; }
-      var prev = result[result.length - 1];
-      if (tk.early_end <= prev.early_end) continue;
-      if (tk.early_start < prev.early_end) tk._displayStart = prev.early_end;
-      result.push(tk);
-    }
-    return result;
   }
 
   ATT.updateCPGantt = function () {
@@ -476,8 +455,8 @@
       bPath = (b.drivingPath || []).filter(function (t) { return t.early_start && t.early_end; });
       oPath = (o.drivingPath || []).filter(function (t) { return t.early_start && t.early_end; });
     } else {
-      bPath = aliceZeroFloatPath(b);
-      oPath = aliceZeroFloatPath(o);
+      bPath = (b.zeroFloatPath || []).filter(function (t) { return t.early_start && t.early_end; });
+      oPath = (o.zeroFloatPath || []).filter(function (t) { return t.early_start && t.early_end; });
     }
 
     bPath.sort(function (a, b) { return a.early_start - b.early_start; });
@@ -491,7 +470,7 @@
   function drawCPGantt(bPath, oPath, scenario) {
     var traces = [];
     var yLabels = [];
-    var maxShow = 40;
+    var maxShow = 80;
 
     if (scenario === 'both') {
       // Merge by task_name, show both bars per activity

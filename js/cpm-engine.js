@@ -106,9 +106,10 @@
         EF[id] = ES[id] + duration;
         drivingPred[id] = null;
       } else {
-        var maxES = -Infinity;
-        var maxEF = -Infinity;
-        var bestPredId = null;
+        var maxStartConstraint = -Infinity;
+        var maxFinishConstraint = -Infinity;
+        var bestStartPred = null;
+        var bestFinishPred = null;
 
         for (var p = 0; p < preds.length; p++) {
           var rel = preds[p];
@@ -117,33 +118,39 @@
 
           var lagMs = (rel.lag_days || 0) * MS_PER_DAY;
           var relType = (rel.rel_type || 'FS').toUpperCase();
-          var candES, candEF;
 
           if (relType === 'SS') {
-            candES = ES[pid] + lagMs;
-            candEF = candES + duration;
+            var ssES = ES[pid] + lagMs;
+            if (ssES > maxStartConstraint) { maxStartConstraint = ssES; bestStartPred = pid; }
           } else if (relType === 'FF') {
-            candEF = EF[pid] + lagMs;
-            candES = candEF - duration;
+            var ffEF = EF[pid] + lagMs;
+            if (ffEF > maxFinishConstraint) { maxFinishConstraint = ffEF; bestFinishPred = pid; }
           } else if (relType === 'SF') {
-            candEF = ES[pid] + lagMs;
-            candES = candEF - duration;
+            var sfEF = ES[pid] + lagMs;
+            if (sfEF > maxFinishConstraint) { maxFinishConstraint = sfEF; bestFinishPred = pid; }
           } else {
-            candES = EF[pid] + lagMs;
-            candEF = candES + duration;
+            var fsES = EF[pid] + lagMs;
+            if (fsES > maxStartConstraint) { maxStartConstraint = fsES; bestStartPred = pid; }
           }
-
-          if (candES > maxES) {
-            maxES = candES;
-            bestPredId = pid;
-          }
-          if (candEF > maxEF) maxEF = candEF;
         }
 
-        ES[id] = maxES;
-        EF[id] = maxEF;
-        if (EF[id] - ES[id] < duration) EF[id] = ES[id] + duration;
-        drivingPred[id] = bestPredId;
+        var esFromStart = maxStartConstraint > -Infinity ? maxStartConstraint : 0;
+        var esFromFinish = maxFinishConstraint > -Infinity ? maxFinishConstraint - duration : -Infinity;
+
+        if (esFromFinish > esFromStart) {
+          ES[id] = esFromFinish;
+          EF[id] = maxFinishConstraint;
+          drivingPred[id] = bestFinishPred;
+        } else {
+          ES[id] = esFromStart;
+          EF[id] = ES[id] + duration;
+          drivingPred[id] = bestStartPred;
+        }
+        if (maxFinishConstraint > EF[id]) {
+          EF[id] = maxFinishConstraint;
+          ES[id] = EF[id] - duration;
+          drivingPred[id] = bestFinishPred;
+        }
       }
 
       // Apply hard constraints after computing from logic
