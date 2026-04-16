@@ -3,43 +3,27 @@
 
   var TACTICS = {
     RESEQUENCING: 'Workfront Resequencing',
-    RAMP:         'Crew Ramp Timing',
-    PEAK_TIMING:  'Crew Peak Timing',
-    INTENSITY:    'Crew Sizing / Intensity',
-    OVERLAP:      'Trade Overlap',
+    EXECUTION:    'Execution Path',
+    PARALLEL:     'Parallel Execution',
+    DURATION:     'Duration Compression',
     HANDOFF:      'Handoff Compression',
-    SMOOTHING:    'Resource Smoothing',
-    CONSTRAINT:   'Constraint Relief',
-    CP:           'Critical Path Migration',
   };
 
   var TACTIC_COLORS = {};
   TACTIC_COLORS[TACTICS.RESEQUENCING] = '#4f8ef7';
-  TACTIC_COLORS[TACTICS.RAMP]         = '#22d3a8';
-  TACTIC_COLORS[TACTICS.PEAK_TIMING]  = '#f97316';
-  TACTIC_COLORS[TACTICS.INTENSITY]    = '#f59e0b';
-  TACTIC_COLORS[TACTICS.OVERLAP]      = '#a78bfa';
+  TACTIC_COLORS[TACTICS.EXECUTION]    = '#a78bfa';
+  TACTIC_COLORS[TACTICS.PARALLEL]     = '#22d3a8';
+  TACTIC_COLORS[TACTICS.DURATION]     = '#f59e0b';
   TACTIC_COLORS[TACTICS.HANDOFF]      = '#f472b6';
-  TACTIC_COLORS[TACTICS.SMOOTHING]    = '#60a5fa';
-  TACTIC_COLORS[TACTICS.CONSTRAINT]   = '#34d399';
-  TACTIC_COLORS[TACTICS.CP]           = '#fb7185';
 
   var TACTIC_RULES = [
-    { name: TACTICS.CP,           signals: 'Activity moves on/off critical path',                          example: 'Was critical in baseline \u2192 now has float \u22651d' },
-    { name: TACTICS.INTENSITY,    signals: 'Start date similar (|\u0394|<5d) + crew increases + duration shortens', example: 'Same window, +8 workers \u2192 3d shorter' },
-    { name: TACTICS.RAMP,         signals: 'Start significantly earlier (>5d) + labor crew increases',     example: 'Pile crew mobilized 12d earlier with bigger crew' },
-    { name: TACTICS.PEAK_TIMING,  signals: 'Same crew + same duration + start month changes (|\u0394|\u22657d)',  example: 'Tracker install shifted from Aug\u2192Oct; same crew & duration' },
-    { name: TACTICS.OVERLAP,      signals: 'New SS relationship or negative lag added',                    example: 'DC stringing starts while module install is still active' },
-    { name: TACTICS.HANDOFF,      signals: 'FS relationship lag reduced by >1 working day',                example: 'Civil-to-tracker handoff shrunk by 5d' },
-    { name: TACTICS.RESEQUENCING, signals: 'Earlier start (>3d) + same duration + no major crew change',   example: 'Blocks reordered: area B starts before area A completes' },
-    { name: TACTICS.SMOOTHING,    signals: 'Crew qty changes without shifting schedule dates significantly', example: 'Resource leveled: peak reduced, spread wider' },
-    { name: TACTICS.CONSTRAINT,   signals: 'Calendar change, uniform block-level shift, or area-release pattern', example: 'Land disturbance permit received \u2192 area release earlier' },
+    { name: TACTICS.RESEQUENCING, signals: 'Earlier start (>3d) with same duration and crew — block order changed',        example: 'Blocks reordered: area B starts before area A completes' },
+    { name: TACTICS.EXECUTION,    signals: 'Predecessor logic changed — relationships added, removed, or driving pred swapped', example: 'Driving predecessor changed from pile install to survey' },
+    { name: TACTICS.PARALLEL,     signals: 'New SS relationship or negative lag — activities now overlap predecessors',    example: 'DC stringing starts while module install is still active' },
+    { name: TACTICS.DURATION,     signals: 'Duration shortened via crew increase, start date similar',                     example: 'Same window, +8 workers, 3d shorter duration' },
+    { name: TACTICS.HANDOFF,      signals: 'Gap between same driving predecessor reduced by >1 day (FS to SS)',            example: 'Civil-to-tracker handoff shrunk by 5d' },
   ];
 
-  /**
-   * Pre-pass: detect blocks with uniform start shifts suggesting an area-level constraint release.
-   * Returns a Set of blockNum values where constraint relief is likely.
-   */
   ATT.detectAreaConstraints = function (diffs) {
     var blockShifts = {};
     for (var i = 0; i < diffs.length; i++) {
@@ -65,103 +49,63 @@
   ATT.classifyTactics = function (diff, constraintBlocks) {
     var tactics = [];
     var startVar = diff.startVar, finishVar = diff.finishVar, durVar = diff.durVar;
-    var laborVar = diff.laborVar, calChange = diff.calChange, logic = diff.logic;
-    var bCritical = diff.bCritical, oCritical = diff.oCritical;
-    var bStart = diff.bStart, oStart = diff.oStart;
+    var laborVar = diff.laborVar, logic = diff.logic;
 
     var earlyImprovement = startVar < -3;
-    var finishImprovement = finishVar < -1;
     var sameTiming    = Math.abs(startVar) < 5 && Math.abs(finishVar) < 5;
-    var crewStable    = Math.abs(laborVar) < 0.5;
-    var durStable     = Math.abs(durVar) < 1;
     var crewIncrease  = laborVar > 0.5;
     var durShorter    = durVar < -0.5;
 
-    if (bCritical !== oCritical) {
+    // 1. Duration Compression — crew added to shorten duration
+    if (durShorter && crewIncrease && sameTiming) {
       tactics.push({
-        tactic: TACTICS.CP,
-        detail: bCritical ? 'Moved off critical path \u2014 gained schedule buffer' : 'Moved onto critical path in optimized',
-        impactDays: Math.max(0, -finishVar)
-      });
-    }
-
-    if (sameTiming && crewIncrease && durShorter) {
-      tactics.push({
-        tactic: TACTICS.INTENSITY,
-        detail: '+' + laborVar.toFixed(1) + ' crew/hr \u2192 ' + Math.abs(durVar).toFixed(1) + 'd shorter duration',
+        tactic: TACTICS.DURATION,
+        detail: '+' + laborVar.toFixed(1) + ' crew \u2192 ' + Math.abs(durVar).toFixed(1) + 'd shorter',
         impactDays: Math.abs(durVar)
       });
     }
 
-    if (earlyImprovement && crewIncrease && !sameTiming) {
-      tactics.push({
-        tactic: TACTICS.RAMP,
-        detail: Math.abs(startVar).toFixed(0) + 'd earlier mobilization with larger crew',
-        impactDays: Math.abs(startVar)
-      });
-    }
-
-    if (Math.abs(startVar) >= 7 && crewStable && durStable && ATT.differentMonth(bStart, oStart)) {
-      var direction = startVar < 0 ? 'earlier' : 'later';
-      tactics.push({
-        tactic: TACTICS.PEAK_TIMING,
-        detail: Math.abs(startVar).toFixed(0) + 'd ' + direction + ' \u2014 crew peak shifts from ' + ATT.monthLabel(bStart) + ' \u2192 ' + ATT.monthLabel(oStart) + ', same crew size & duration',
-        impactDays: Math.max(0, -finishVar)
-      });
-    }
-
+    // 2. Parallel Execution — new SS or negative lag
     if (logic.newSS > 0 || logic.hasNegLag) {
       tactics.push({
-        tactic: TACTICS.OVERLAP,
-        detail: logic.newSS + ' new parallel-start relationship(s) \u2014 activities now overlapping',
+        tactic: TACTICS.PARALLEL,
+        detail: logic.newSS + ' relationship(s) changed to Start-to-Start \u2014 activities now overlap',
         impactDays: Math.max(0, -startVar)
       });
     }
 
+    // 3. Handoff Compression — same driving predecessor, gap reduced
     if (logic.lagDelta < -24 && logic.sameDriving) {
       tactics.push({
         tactic: TACTICS.HANDOFF,
-        detail: (Math.abs(logic.lagDelta) / 24).toFixed(1) + 'd lag cut from predecessor \u201C' + (logic.drivingPredName || '').split(' - ')[0] + '\u201D',
+        detail: (Math.abs(logic.lagDelta) / 24).toFixed(1) + 'd gap reduced with predecessor',
         impactDays: Math.min(Math.abs(finishVar), Math.abs(logic.lagDelta) / 24)
       });
     }
 
-    if (earlyImprovement && Math.abs(durVar) < 1 && Math.abs(laborVar) < 0.5) {
-      if (!tactics.find(function (t) { return t.tactic === TACTICS.OVERLAP; })) {
+    // 4. Execution Path — predecessor logic changed
+    if (logic.added > 0 || logic.removed > 0 || (logic.bPredCount > 0 && !logic.sameDriving)) {
+      if (!tactics.find(function (t) { return t.tactic === TACTICS.PARALLEL || t.tactic === TACTICS.HANDOFF; })) {
         tactics.push({
-          tactic: TACTICS.RESEQUENCING,
-          detail: Math.abs(startVar).toFixed(0) + 'd earlier area release, same work scope and crew',
-          impactDays: Math.abs(startVar)
-        });
-      }
-    }
-
-    if (calChange && finishImprovement) {
-      tactics.push({
-        tactic: TACTICS.CONSTRAINT,
-        detail: 'Calendar or constraint change enabled earlier execution',
-        impactDays: Math.max(0, -finishVar)
-      });
-    }
-
-    if (constraintBlocks && constraintBlocks.has(diff.blockNum) && finishImprovement) {
-      if (!tactics.find(function (t) { return t.tactic === TACTICS.CONSTRAINT; })) {
-        tactics.push({
-          tactic: TACTICS.CONSTRAINT,
-          detail: 'Uniform block-level shift suggests area constraint released (Block ' + diff.blockNum + ')',
+          tactic: TACTICS.EXECUTION,
+          detail: (logic.added || 0) + ' predecessor(s) added, ' + (logic.removed || 0) + ' removed',
           impactDays: Math.max(0, -finishVar)
         });
       }
     }
 
-    if (Math.abs(laborVar) > 0.5 && sameTiming && Math.abs(durVar) > 0.5 && !tactics.find(function (t) { return t.tactic === TACTICS.INTENSITY; })) {
-      tactics.push({
-        tactic: TACTICS.SMOOTHING,
-        detail: 'Crew adjusted ' + (laborVar > 0 ? '+' : '') + laborVar.toFixed(1) + '/hr, duration adjusted without shifting dates',
-        impactDays: Math.abs(durVar)
-      });
+    // 5. Workfront Resequencing — earlier start, same scope
+    if (earlyImprovement && Math.abs(durVar) < 1 && Math.abs(laborVar) < 0.5) {
+      if (!tactics.find(function (t) { return t.tactic === TACTICS.PARALLEL; })) {
+        tactics.push({
+          tactic: TACTICS.RESEQUENCING,
+          detail: Math.abs(startVar).toFixed(0) + 'd earlier \u2014 block order changed',
+          impactDays: Math.abs(startVar)
+        });
+      }
     }
 
+    // Fallback — if nothing matched but dates shifted significantly
     if (tactics.length === 0 && (Math.abs(startVar) > 3 || Math.abs(finishVar) > 3)) {
       tactics.push({
         tactic: TACTICS.RESEQUENCING,
