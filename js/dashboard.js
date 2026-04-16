@@ -317,10 +317,14 @@
     var yLabels = rows.map(function (r) { return r.label; });
     var traces = [];
 
+    var bothScenarios = showB && showO;
+    var bLineW = bothScenarios ? 18 : 22;
+    var oLineW = bothScenarios ? 10 : 22;
+
     if (showB) {
       traces.push({
         type: 'scatter', mode: 'lines', name: 'Baseline',
-        x: [], y: [], line: { color: 'rgba(79,142,247,0.9)', width: 14 },
+        x: [], y: [], line: { color: 'rgba(79,142,247,0.9)', width: bLineW },
         hoverinfo: 'text', text: [],
       });
       for (var i = 0; i < rows.length; i++) {
@@ -340,7 +344,7 @@
     if (showO) {
       traces.push({
         type: 'scatter', mode: 'lines', name: 'Optimized',
-        x: [], y: [], line: { color: 'rgba(34,211,168,0.9)', width: 8 },
+        x: [], y: [], line: { color: 'rgba(34,211,168,0.9)', width: oLineW },
         hoverinfo: 'text', text: [],
       });
       for (var i = 0; i < rows.length; i++) {
@@ -362,14 +366,14 @@
       if (yLabels[li].length > maxLabelLen) maxLabelLen = yLabels[li].length;
     }
     var leftMargin = Math.min(400, Math.max(100, maxLabelLen * 7 + 20));
-    var rowHeight = rows.length <= 15 ? 36 : rows.length <= 40 ? 28 : 22;
-    var chartH = Math.max(250, Math.min(rows.length * rowHeight + 80, 1200));
+    var ROW_H = 40;
+    var chartH = Math.max(300, rows.length * ROW_H + 80);
 
     plotDark('chart-workfront', traces, {
       xaxis: { type: 'date', color: '#8899bb', gridcolor: '#2a3050', automargin: true },
       yaxis: {
         categoryorder: 'array', categoryarray: yLabels.slice().reverse(),
-        color: '#e2e8f0', tickfont: { size: rows.length > 40 ? 9 : 10 }, automargin: true,
+        color: '#e2e8f0', tickfont: { size: 11 }, automargin: true,
       },
       margin: { l: leftMargin, r: 30, t: 10, b: 50 },
       height: chartH,
