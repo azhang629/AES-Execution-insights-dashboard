@@ -79,16 +79,18 @@
       type: 'pie',
       labels: commData.map(function (c) { return c.name; }),
       values: commData.map(function (c) { return c.val; }),
-      hole: 0.45,
+      hole: 0.4,
       marker: { colors: ['#4f8ef7', '#22d3a8', '#f59e0b', '#a78bfa', '#f472b6', '#60a5fa', '#34d399', '#fb7185'] },
       textinfo: 'label+percent',
-      textposition: 'outside',
-      textfont: { size: 11, color: '#e2e8f0' },
+      textposition: 'inside',
+      insidetextorientation: 'radial',
+      textfont: { size: 11, color: '#ffffff' },
       hovertemplate: '<b>%{label}</b><br>%{percent}<extra></extra>',
       sort: false,
     }], {
-      showlegend: false,
-      margin: { l: 20, r: 20, t: 20, b: 20 },
+      showlegend: true,
+      legend: { font: { color: '#e2e8f0', size: 11 }, orientation: 'h', y: -0.15 },
+      margin: { l: 10, r: 10, t: 10, b: 50 },
       height: 300,
     });
 
