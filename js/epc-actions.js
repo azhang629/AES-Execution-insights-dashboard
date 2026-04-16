@@ -267,7 +267,7 @@
         (d.logic.added > 0 || d.logic.removed > 0 || !d.logic.sameDriving);
     }).sort(function (a, b) { return a.finishVar - b.finishVar; });
     if (pathDiffs.length > 0) {
-      var epDetails = pathDiffs.slice(0, 10).map(function (d) {
+      var epDetails = pathDiffs.map(function (d) {
         return {
           taskName: shortName(d.task_name),
           block: blockTag(d),
@@ -331,7 +331,7 @@
       return d.durVar < -1 && d.laborVar > 0.5 && Math.abs(d.startVar) < 5;
     }).sort(function (a, b) { return a.durVar - b.durVar; });
     if (durDiffs.length > 0) {
-      var dcDetails = durDiffs.slice(0, 8).map(function (d) {
+      var dcDetails = durDiffs.map(function (d) {
         return {
           taskName: shortName(d.task_name),
           block: blockTag(d),
@@ -358,7 +358,7 @@
       return d.logic && d.logic.lagDelta < -24 && d.logic.sameDriving;
     }).sort(function (a, b) { return a.logic.lagDelta - b.logic.lagDelta; });
     if (handoffDiffs.length > 0) {
-      var hoDetails = handoffDiffs.slice(0, 8).map(function (d) {
+      var hoDetails = handoffDiffs.map(function (d) {
         var bGap = d.logic.bDrivingLagDays !== null ? Math.round(d.logic.bDrivingLagDays) : null;
         var oGap = d.logic.oDrivingLagDays !== null ? Math.round(d.logic.oDrivingLagDays) : null;
         var bRel = d.logic.bDrivingRelType || 'FS';
