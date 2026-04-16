@@ -364,6 +364,105 @@ body {
   color: var(--warn);
 }
 
+/* ── Crew Bucket Cards ── */
+.crew-bucket { border-left: 3px solid var(--accent); }
+.crew-task-count {
+  font-size: 11px; color: var(--text-muted); background: var(--surface3);
+  padding: 3px 10px; border-radius: 12px; white-space: nowrap; flex-shrink: 0;
+}
+.crew-peak-line {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 10px 14px; background: var(--surface2); border-radius: 8px;
+  font-size: 12.5px; color: var(--text); margin-bottom: 12px; flex-wrap: wrap;
+}
+.crew-peak-shift { font-size: 13px; font-weight: 700; flex-shrink: 0; }
+.crew-lever-summary {
+  font-size: 12px; color: var(--text-muted); margin-bottom: 10px; line-height: 1.5;
+}
+
+/* ── Lever Accordion ── */
+.epc-levers-wrap {
+  border-top: 1px solid var(--border); padding-top: 10px;
+}
+.epc-lever {
+  border: 1px solid var(--border); border-radius: 8px;
+  margin-bottom: 8px; overflow: hidden; background: var(--surface);
+}
+.epc-lever:last-child { margin-bottom: 0; }
+.epc-lever-header {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 14px; cursor: pointer; transition: background .12s;
+  user-select: none;
+}
+.epc-lever-header:hover { background: var(--surface2); }
+.epc-lever-arrow {
+  font-size: 10px; color: var(--text-muted); width: 14px; flex-shrink: 0;
+  transition: transform .15s;
+}
+.epc-lever-name {
+  font-size: 13px; font-weight: 700; color: var(--accent); white-space: nowrap;
+}
+.epc-lever-count {
+  font-size: 10px; background: rgba(79,142,247,.12); color: var(--accent);
+  padding: 2px 7px; border-radius: 10px; font-weight: 700; flex-shrink: 0;
+}
+.epc-lever-summary-text {
+  font-size: 11.5px; color: var(--text-muted); margin-left: auto;
+  text-align: right; white-space: nowrap;
+}
+.epc-lever-detail {
+  padding: 12px 14px; border-top: 1px solid var(--border);
+  background: var(--surface2);
+}
+
+/* ── Lever: Resequencing paths ── */
+.lever-path-compare { font-size: 12.5px; line-height: 1.8; }
+.lever-path-row { display: flex; gap: 8px; align-items: baseline; }
+.lever-path-label {
+  font-weight: 700; color: var(--text-muted); min-width: 75px; flex-shrink: 0;
+}
+.lever-reseq-flag {
+  margin-top: 8px; padding: 6px 10px; border-radius: 6px; font-size: 11.5px;
+  background: rgba(245,158,11,.07); border: 1px solid rgba(245,158,11,.2); color: var(--warn);
+}
+
+/* ── Lever: Execution Path predecessors ── */
+.lever-ep-task {
+  padding: 8px 0; border-bottom: 1px solid var(--border);
+}
+.lever-ep-task:last-child { border-bottom: none; }
+.lever-ep-task-name {
+  font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 4px;
+}
+.lever-ep-block { font-size: 11px; color: var(--text-muted); font-weight: 400; }
+.lever-ep-shift { font-size: 11px; font-weight: 700; }
+.lever-ep-preds {
+  font-size: 12px; color: var(--text-muted); display: flex; flex-wrap: wrap; gap: 6px;
+  align-items: center;
+}
+.lever-ep-preds .pred-same {
+  display: inline-block; padding: 2px 8px; border-radius: 4px;
+  background: rgba(142,142,142,.12); color: var(--text-muted); font-size: 11px;
+}
+.lever-ep-preds .pred-deleted {
+  display: inline-block; padding: 2px 8px; border-radius: 4px;
+  background: rgba(239,68,68,.1); color: #fb7185; font-size: 11px;
+  text-decoration: line-through;
+}
+.lever-ep-preds .pred-new {
+  display: inline-block; padding: 2px 8px; border-radius: 4px;
+  background: rgba(34,211,168,.1); color: #22d3a8; font-size: 11px;
+  font-weight: 600;
+}
+
+/* ── Lever: generic detail rows ── */
+.lever-detail-list { font-size: 12.5px; line-height: 1.7; }
+.lever-detail-row {
+  padding: 4px 0; border-bottom: 1px solid var(--border); color: var(--text);
+}
+.lever-detail-row:last-child { border-bottom: none; }
+.lever-task-label { font-weight: 600; }
+
 /* ── Critical Path Controls ── */
 .cp-controls {
   background: var(--surface2); border: 1px solid var(--border); border-radius: 10px;

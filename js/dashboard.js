@@ -100,70 +100,137 @@
     }).join('');
   }
 
-  // ── EPC Actions ──
+  // ── EPC Actions (crew-based buckets) ──
   function renderEPCActions(R) {
-    var epcActions = R.epcActions, totalGainDays = R.totalGainDays, usingMC = R.usingMC;
-    if (!epcActions || !epcActions.length) return;
+    var buckets = R.epcActions, totalGainDays = R.totalGainDays, usingMC = R.usingMC;
+    if (!buckets || !buckets.length) return;
     var sub = document.getElementById('epc-actions-sub');
-    if (sub) sub.textContent = 'What the EPC must execute differently to realize the ' + totalGainDays + '-day ' + (usingMC ? 'Mechanical Completion ' : '') + 'acceleration';
+    if (sub) sub.textContent = 'Crew-by-crew breakdown of schedule levers \u2014 ' + totalGainDays + '-day ' + (usingMC ? 'MC ' : '') + 'acceleration';
     var list = document.getElementById('epc-actions-list');
     if (!list) return;
-    list.innerHTML = epcActions.map(function (a, i) {
-      var pCls = a.priority.toLowerCase();
-      var weakHtml = '';
-      if (a.weakLogic && a.weakLogicNote) {
-        weakHtml = '<div class="epc-weak-logic">\u26A0 ' + a.weakLogicNote + '</div>';
+
+    list.innerHTML = buckets.map(function (b, idx) {
+      var shiftDir = b.peakShiftDays > 0 ? 'earlier' : (b.peakShiftDays < 0 ? 'later' : 'unchanged');
+      var shiftCls = b.peakShiftDays > 0 ? 'epc-shift-pos' : (b.peakShiftDays < 0 ? 'epc-shift-neg' : '');
+      var shiftText = b.peakShiftDays !== 0
+        ? '<span class="' + shiftCls + '">' + Math.abs(b.peakShiftDays) + 'd ' + shiftDir + '</span>'
+        : '<span style="color:var(--text-muted)">no shift</span>';
+
+      var peakLine = '';
+      if (b.bPeakDate && b.oPeakDate) {
+        peakLine = '<div class="crew-peak-line">' +
+          '<span>Peak: <strong>' + b.bPeakCount + '</strong> workers on ' + fmtDate(b.bPeakDate) + ' \u2192 <strong>' + b.oPeakCount + '</strong> workers on ' + fmtDate(b.oPeakDate) + '</span>' +
+          '<span class="crew-peak-shift">' + shiftText + '</span>' +
+        '</div>';
       }
 
-      var bulletsHtml = '';
-      if (a.bullets && a.bullets.length) {
-        bulletsHtml = '<ul class="epc-bullets">' +
-          a.bullets.map(function (b) { return '<li>' + b + '</li>'; }).join('') +
-        '</ul>';
-      }
+      var leverCount = b.levers.length;
+      var leverSummary = leverCount > 0
+        ? '<div class="crew-lever-summary">' + leverCount + ' lever' + (leverCount !== 1 ? 's' : '') + ' identified: ' +
+          b.levers.map(function (lv) { return lv.label; }).join(', ') + '</div>'
+        : '<div class="crew-lever-summary" style="color:var(--text-dim)">No schedule levers detected for this crew</div>';
 
-      var subItemsHtml = '';
-      if (a.subItems && a.subItems.length) {
-        subItemsHtml = '<div class="epc-sub-items"><ol>' +
-          a.subItems.map(function (si) {
-            var warnIcon = si.weak ? ' <span style="color:var(--warn);font-size:10px" title="Weak logic \u2014 driving predecessor differs">\u26A0</span>' : '';
-            return '<li>' + si.text + warnIcon + '</li>';
-          }).join('') +
-        '</ol></div>';
-      }
+      var leversHtml = b.levers.map(function (lv, li) {
+        var uid = 'lever-' + idx + '-' + li;
+        var detailHtml = renderLeverDetail(lv);
+        return '<div class="epc-lever">' +
+          '<div class="epc-lever-header" onclick="ATT.toggleLever(\'' + uid + '\')">' +
+            '<span class="epc-lever-arrow" id="arrow-' + uid + '">\u25B6</span>' +
+            '<span class="epc-lever-name">' + lv.label + '</span>' +
+            '<span class="epc-lever-count">' + lv.count + '</span>' +
+            '<span class="epc-lever-summary-text">' + lv.summary + '</span>' +
+          '</div>' +
+          '<div class="epc-lever-detail" id="' + uid + '" style="display:none">' + detailHtml + '</div>' +
+        '</div>';
+      }).join('');
 
-      var crewHtml = '';
-      if (a.crewShifts && a.crewShifts.length) {
-        crewHtml = '<div class="epc-crew-table"><table>' +
-          '<thead><tr><th>Crew</th><th>Baseline Crew #</th><th>Baseline Peak Date</th><th>Optimized Crew #</th><th>Optimized Peak Date</th><th>Shift</th></tr></thead><tbody>' +
-          a.crewShifts.map(function (c) {
-            var dir = c.shiftDays > 0 ? 'earlier' : 'later';
-            var cls = c.shiftDays > 0 ? 'epc-shift-pos' : 'epc-shift-neg';
-            return '<tr><td>' + c.name + '</td>' +
-              '<td>' + c.bPeak + '</td>' +
-              '<td>' + fmtDate(c.bDate) + '</td>' +
-              '<td>' + c.oPeak + '</td>' +
-              '<td>' + fmtDate(c.oDate) + '</td>' +
-              '<td class="' + cls + '">' + Math.abs(c.shiftDays) + 'd ' + dir + '</td></tr>';
-          }).join('') +
-          '</tbody></table></div>';
-      }
-
-      return '<div class="epc-action-card priority-' + pCls + '">' +
+      return '<div class="epc-action-card crew-bucket">' +
         '<div class="epc-card-header">' +
-          '<div class="epc-num">' + (i + 1) + '</div>' +
-          '<div class="epc-title">' + a.title + '</div>' +
-          '<span class="priority-pill ' + pCls + '">' + a.priority + '</span>' +
+          '<div class="epc-num">' + (idx + 1) + '</div>' +
+          '<div class="epc-title">' + b.crewName + '</div>' +
+          '<span class="crew-task-count">' + b.taskCount + ' tasks</span>' +
         '</div>' +
         '<div class="epc-body">' +
-          bulletsHtml +
-          subItemsHtml +
-          crewHtml +
+          peakLine +
+          leverSummary +
+          (leversHtml ? '<div class="epc-levers-wrap">' + leversHtml + '</div>' : '') +
         '</div>' +
-        weakHtml +
       '</div>';
     }).join('');
   }
+
+  function renderLeverDetail(lever) {
+    if (lever.type === 'resequencing') {
+      return '<div class="lever-path-compare">' +
+        '<div class="lever-path-row"><span class="lever-path-label">Baseline:</span> <span>' + (lever.baselinePath || '\u2014') + '</span></div>' +
+        '<div class="lever-path-row"><span class="lever-path-label">Optimized:</span> <span>' + (lever.optimizedPath || '\u2014') + '</span></div>' +
+        (lever.changed ? '<div class="lever-reseq-flag">\u26A0 Installation order changed between scenarios</div>' : '<div style="color:var(--text-dim);font-size:11px;margin-top:6px">Same progression order in both scenarios</div>') +
+      '</div>';
+    }
+
+    if (lever.type === 'execution_path' && lever.details) {
+      return lever.details.map(function (d) {
+        var predHtml = d.predComparison.map(function (p) {
+          var cls = 'pred-' + p.status;
+          var label = p.status === 'same' ? '' : (p.status === 'deleted' ? ' (removed)' : ' (new)');
+          return '<span class="' + cls + '">' + p.name + label + '</span>';
+        }).join('');
+        return '<div class="lever-ep-task">' +
+          '<div class="lever-ep-task-name">' + d.taskName + (d.block ? ' <span class="lever-ep-block">(' + d.block + ')</span>' : '') +
+            ' <span class="lever-ep-shift">' + (d.finishShift < 0 ? '\u25B2' : '\u25BC') + ' ' + Math.abs(d.finishShift).toFixed(0) + 'd</span></div>' +
+          '<div class="lever-ep-preds">Predecessors: ' + (predHtml || '<span style="color:var(--text-dim)">none</span>') + '</div>' +
+        '</div>';
+      }).join('');
+    }
+
+    if (lever.type === 'parallel' && lever.details) {
+      return '<div class="lever-detail-list">' +
+        lever.details.map(function (d) {
+          return '<div class="lever-detail-row">' +
+            '<span class="lever-task-label">' + d.taskName + (d.block ? ' (' + d.block + ')' : '') + '</span>' +
+            ' \u2014 run parallel with <em>' + d.predName + '</em>, finish ' + d.finishShift + 'd earlier' +
+            ' <span style="color:var(--text-dim)">(' + d.bEnd + ' \u2192 ' + d.oEnd + ')</span>' +
+          '</div>';
+        }).join('') +
+      '</div>';
+    }
+
+    if (lever.type === 'duration' && lever.details) {
+      return '<div class="epc-crew-table"><table>' +
+        '<thead><tr><th>Activity</th><th>Block</th><th>Base Crew</th><th>Opt Crew</th><th>Base Dur</th><th>Opt Dur</th><th>Saved</th></tr></thead><tbody>' +
+        lever.details.map(function (d) {
+          return '<tr><td>' + d.taskName + '</td><td>' + (d.block || '\u2014') + '</td>' +
+            '<td>' + d.bCrew + '</td><td>' + d.oCrew + '</td>' +
+            '<td>' + d.bDur + 'd</td><td>' + d.oDur + 'd</td>' +
+            '<td class="epc-shift-pos">\u2212' + d.saved + 'd</td></tr>';
+        }).join('') +
+      '</tbody></table></div>';
+    }
+
+    if (lever.type === 'handoff' && lever.details) {
+      return '<div class="epc-crew-table"><table>' +
+        '<thead><tr><th>Activity</th><th>Block</th><th>Predecessor</th><th>Base Gap</th><th>Opt Gap</th><th>Saved</th></tr></thead><tbody>' +
+        lever.details.map(function (d) {
+          return '<tr><td>' + d.taskName + '</td><td>' + (d.block || '\u2014') + '</td>' +
+            '<td>' + d.predName + '</td>' +
+            '<td>' + (d.bGap !== null ? d.bGap + 'd' : '\u2014') + '</td>' +
+            '<td>' + (d.oGap !== null ? d.oGap + 'd' : '\u2014') + '</td>' +
+            '<td class="epc-shift-pos">\u2212' + d.saved + 'd</td></tr>';
+        }).join('') +
+      '</tbody></table></div>';
+    }
+
+    return '<div style="color:var(--text-dim);font-size:12px;padding:6px 0">No additional detail available</div>';
+  }
+
+  ATT.toggleLever = function (uid) {
+    var el = document.getElementById(uid);
+    var arrow = document.getElementById('arrow-' + uid);
+    if (!el) return;
+    var open = el.style.display !== 'none';
+    el.style.display = open ? 'none' : '';
+    if (arrow) arrow.textContent = open ? '\u25B6' : '\u25BC';
+  };
 
   // ── Workfront Sequences ──
   var _wfCache = null;
@@ -499,44 +566,36 @@
       renderAliceCrewCurves(R.bCrewData, R.oCrewData);
     }
 
-    var crewAction = (R.epcActions || []).filter(function (a) {
-      return a.crewShifts && a.crewShifts.length > 0;
-    })[0];
-
     var summaryEl = document.getElementById('crew-ramp-summary');
     if (!summaryEl) return;
-    if (!crewAction) { summaryEl.style.display = 'none'; return; }
+
+    var buckets = R.epcActions || [];
+    var shifted = buckets.filter(function (b) { return b.peakShiftDays !== 0 && b.bPeakDate && b.oPeakDate; });
+    if (shifted.length === 0) { summaryEl.style.display = 'none'; return; }
 
     summaryEl.style.display = '';
-    var bulletsHtml = '';
-    if (crewAction.bullets && crewAction.bullets.length) {
-      bulletsHtml = '<ul class="epc-bullets">' +
-        crewAction.bullets.map(function (b) { return '<li>' + b + '</li>'; }).join('') +
-      '</ul>';
-    }
-
     var tableHtml = '<div class="epc-crew-table"><table>' +
-      '<thead><tr><th>Crew</th><th>Baseline Crew #</th><th>Baseline Peak Date</th><th>Optimized Crew #</th><th>Optimized Peak Date</th><th>Shift</th></tr></thead><tbody>' +
-      crewAction.crewShifts.map(function (c) {
-        var dir = c.shiftDays > 0 ? 'earlier' : 'later';
-        var cls = c.shiftDays > 0 ? 'epc-shift-pos' : 'epc-shift-neg';
-        return '<tr><td>' + c.name + '</td>' +
-          '<td>' + c.bPeak + '</td>' +
-          '<td>' + fmtDate(c.bDate) + '</td>' +
-          '<td>' + c.oPeak + '</td>' +
-          '<td>' + fmtDate(c.oDate) + '</td>' +
-          '<td class="' + cls + '">' + Math.abs(c.shiftDays) + 'd ' + dir + '</td></tr>';
+      '<thead><tr><th>Crew</th><th>Baseline Crew #</th><th>Baseline Peak</th><th>Optimized Crew #</th><th>Optimized Peak</th><th>Shift</th></tr></thead><tbody>' +
+      shifted.sort(function (a, b) { return Math.abs(b.peakShiftDays) - Math.abs(a.peakShiftDays); }).map(function (b) {
+        var dir = b.peakShiftDays > 0 ? 'earlier' : 'later';
+        var cls = b.peakShiftDays > 0 ? 'epc-shift-pos' : 'epc-shift-neg';
+        return '<tr><td>' + b.crewName + '</td>' +
+          '<td>' + b.bPeakCount + '</td>' +
+          '<td>' + fmtDate(b.bPeakDate) + '</td>' +
+          '<td>' + b.oPeakCount + '</td>' +
+          '<td>' + fmtDate(b.oPeakDate) + '</td>' +
+          '<td class="' + cls + '">' + Math.abs(b.peakShiftDays) + 'd ' + dir + '</td></tr>';
       }).join('') +
       '</tbody></table></div>';
 
     summaryEl.innerHTML =
-      '<div class="epc-action-card priority-high" style="margin-top:16px">' +
+      '<div class="epc-action-card crew-bucket" style="margin-top:16px">' +
         '<div class="epc-card-header">' +
           '<div class="epc-num">\u{1F477}</div>' +
-          '<div class="epc-title">' + crewAction.title + '</div>' +
-          '<span class="priority-pill high">' + crewAction.priority + '</span>' +
+          '<div class="epc-title">Crew Peak Shifts Summary</div>' +
+          '<span class="crew-task-count">' + shifted.length + ' crews</span>' +
         '</div>' +
-        '<div class="epc-body">' + bulletsHtml + tableHtml + '</div>' +
+        '<div class="epc-body">' + tableHtml + '</div>' +
       '</div>';
   }
 
