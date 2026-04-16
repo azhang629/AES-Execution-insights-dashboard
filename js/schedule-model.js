@@ -3,48 +3,19 @@
 
   var parseDate = ATT.parseDate;
 
-  function classifyCommodity(name, trade) {
+  function classifyCommodity(name, trade, elementType) {
+    var el = (elementType || '').trim();
+    if (el) return el;
+
     var n = (name || '').toLowerCase();
 
     if (/dc trench|dc backfill|dc feeders|dc ug/.test(n)) return 'DC Collection UG';
     if (/harness cable|module wire|module connect|string \(array|bla\+|homerun|cab system|disconnect box/.test(n)) return 'DC Collection AG';
     if (/\bac trench|\bac ag cable|\bac ug|\bac ag line pile|\bac collection/.test(n)) return 'AC Collection';
     if (/inverter|fiber optic|scada/.test(n)) return 'Inverter';
-
-    if (trade) {
-      var t = trade.toLowerCase();
-      if (/pil/i.test(t)) return 'Piling';
-      if (/tracker/i.test(t)) return 'Tracker Install';
-      if (/module/i.test(t)) return 'Module Install';
-      if (/dc.*ug|trenching|backfill/i.test(t)) return 'DC Collection UG';
-      if (/dc|string|array|wiring/i.test(t)) return 'DC Collection AG';
-      if (/\bac\b/i.test(t)) return 'AC Collection';
-      if (/inverter/i.test(t)) return 'Inverter';
-      if (/commission/i.test(t)) return 'Commissioning';
-      if (/civil|foundation|grading/i.test(t)) return 'Civil / Foundation';
-      if (/substation|hv/i.test(t)) return 'Substation';
-      if (/procurement|material|deliver/i.test(t)) return 'Procurement';
-      if (/mileston|mobiliz/i.test(t)) return 'Milestones';
-      if (/fiber|scada/i.test(t)) return 'Inverter';
-      if (/met\s*station/i.test(t)) return 'Electrical';
-      if (/electrical/i.test(t)) {
-        if (/fiber optic|scada/.test(n)) return 'Inverter';
-        if (/met\s*station/.test(n)) return 'Electrical';
-        if (/pile install|pile survey|pile remed/.test(n)) return 'Piling';
-        if (/tracker install/.test(n)) return 'Tracker Install';
-        if (/modules install/.test(n)) return 'Module Install';
-        if (/cold commission|pre-functional/.test(n)) return 'Commissioning';
-        if (/substation|gsu|transformer/.test(n)) return 'Substation';
-        if (/grading|stump|grubbing|interior road/.test(n)) return 'Civil / Foundation';
-        if (/mobilize|milestone/.test(n)) return 'Milestones';
-        return 'Electrical';
-      }
-    }
-
     if (/pile install|pile survey|pile remed/.test(n)) return 'Piling';
     if (/tracker install/.test(n)) return 'Tracker Install';
     if (/modules install/.test(n)) return 'Module Install';
-    if (/fiber optic|scada/.test(n)) return 'Inverter';
     if (/met\s*station/.test(n)) return 'Electrical';
     if (/cold commission|pre-functional/.test(n)) return 'Commissioning';
     if (/grading|stump|grubbing|interior road|basin|swpp|erosion|pre-seed|stabilize/.test(n)) return 'Civil / Foundation';
@@ -140,7 +111,7 @@
         wbs_id:         row['WBS Outline'] || '',
         cstr_type:      (row['Primary Constraint Type'] || row['Constraint Type'] || row['Primary Constraint'] || '').trim(),
         cstr_date:      parseDate(row['Primary Constraint Date'] || row['Constraint Date'] || ''),
-        commodity:      classifyCommodity(row['Task Name'], row['Trade']),
+        commodity:      classifyCommodity(row['Task Name'], row['Trade'], row['Property: custom_alice_element_type']),
         trade:          row['Trade'] || '',
         blockNotation:  blockNotation,
         blockNum:       parts[0] || '',
