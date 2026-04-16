@@ -279,17 +279,12 @@
       return '<div class="epc-crew-table"><table>' +
         '<thead><tr><th>Activity</th><th>Predecessor</th><th>Why</th></tr></thead><tbody>' +
         lever.details.map(function (d) {
-          var why = '';
-          if (d.relChanged) {
-            why = 'Gap reduced by ' + d.saved + 'd due to relationship type change from ' + d.bRel + ' to ' + d.oRel +
-              ' (baseline gap: ' + (d.bGap !== null ? d.bGap + 'd' : 'n/a') + ' \u2192 optimized gap: ' + (d.oGap !== null ? d.oGap + 'd' : 'n/a') + ')';
-          } else if (d.oGap !== null && d.oGap < 0) {
-            why = 'Gap reduced by ' + d.saved + 'd — negative lag (lead) applied on ' + d.bRel + ' relationship' +
-              ' (baseline gap: ' + (d.bGap !== null ? d.bGap + 'd' : 'n/a') + ' \u2192 optimized gap: ' + d.oGap + 'd)';
-          } else {
-            why = 'Gap reduced by ' + d.saved + 'd on ' + d.bRel + ' relationship' +
-              ' (baseline gap: ' + (d.bGap !== null ? d.bGap + 'd' : 'n/a') + ' \u2192 optimized gap: ' + (d.oGap !== null ? d.oGap + 'd' : 'n/a') + ')';
-          }
+          var bGapStr = d.bGap !== null ? d.bGap + 'd' : 'n/a';
+          var oGapStr = d.oGap !== null ? d.oGap + 'd' : 'n/a';
+          var relNote = d.relChanged
+            ? 'relationship changed from ' + d.bRel + ' (Finish-to-Start) to ' + d.oRel + (d.oRel === 'SS' ? ' (Start-to-Start)' : d.oRel === 'FF' ? ' (Finish-to-Finish)' : d.oRel === 'SF' ? ' (Start-to-Finish)' : '')
+            : d.bRel + ' relationship maintained' + (d.bRel === 'FS' ? ' (Finish-to-Start)' : d.bRel === 'SS' ? ' (Start-to-Start)' : '');
+          var why = 'Gap reduced by ' + d.saved + 'd — ' + relNote + '. Baseline gap: ' + bGapStr + ' \u2192 optimized gap: ' + oGapStr;
           return '<tr><td>' + d.taskName + '</td>' +
             '<td>' + d.predName + '</td>' +
             '<td style="font-size:11px">' + why + '</td></tr>';
