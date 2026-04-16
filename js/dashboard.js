@@ -223,10 +223,7 @@
       '</div>' +
       (lever.changed
         ? '<div class="lever-reseq-flag" style="margin:10px 0">\u26A0 ' + movedCount + ' block' + (movedCount !== 1 ? 's' : '') + ' changed position</div>'
-        : '<div style="color:var(--text-dim);font-size:11px;margin:8px 0">Same progression order in both scenarios</div>') +
-      '<div class="epc-crew-table" style="margin-top:8px"><table>' +
-        '<thead><tr><th>Block</th><th>Baseline Pos</th><th>Optimized Pos</th><th>Change</th></tr></thead>' +
-        '<tbody>' + tableRows + '</tbody></table></div>';
+        : '<div style="color:var(--text-dim);font-size:11px;margin:8px 0">Same progression order in both scenarios</div>');
     }
 
     if (lever.type === 'execution_path' && lever.details) {
