@@ -279,8 +279,7 @@
         '<div><span style="color:var(--text-muted)">Optimized peak:</span> <strong style="color:var(--text-bright)">' + (oConc.maxConcurrent || 0) + ' workfronts</strong> at once</div>' +
       '</div>';
       var explainHtml = '<div style="color:var(--text-muted);font-size:11px;font-style:italic;margin-bottom:10px">' +
-        'Each pill represents a time window. Blocks joined by "+" are under construction during the same period and require the crew to be active on all of them at once. ' +
-        'Arrows show the sequence of work windows from left to right.' +
+        'Blocks joined by "+" need this crew working on them at the same time.' +
         '</div>';
       return summaryHtml + explainHtml +
         '<div class="seq-legend" style="margin-bottom:8px">' +
