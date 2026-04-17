@@ -83,6 +83,56 @@
       insights.push({ tactic: t.name, text: text, exec: exec, days: Math.round(t.scaledDays) });
     }
 
+    // Commodity-level insights aligned with the Gain by Commodity chart
+    var byCommodity = aggregations.byCommodity || {};
+    var commEntries = Object.entries(byCommodity)
+      .map(function (e) { return { name: e[0], val: Math.abs(e[1].totalFinishVar), diffs: e[1].diffs }; })
+      .filter(function (c) { return c.val > 0 && c.name !== 'Other' && c.name !== 'Milestones' && c.name !== 'Procurement'; })
+      .sort(function (a, b) { return b.val - a.val; });
+    var commTotal = commEntries.reduce(function (s, c) { return s + c.val; }, 0) || 1;
+
+    var topComms = commEntries.slice(0, 4);
+    for (var ci = 0; ci < topComms.length; ci++) {
+      var comm = topComms[ci];
+      var pct = Math.round((comm.val / commTotal) * 100);
+      if (pct < 5) continue;
+
+      var tacticBreakdown = {};
+      for (var di2 = 0; di2 < comm.diffs.length; di2++) {
+        var cd = comm.diffs[di2];
+        var impact = Math.abs(cd.finishVar || 0);
+        if (!cd.tactics) continue;
+        for (var ti2 = 0; ti2 < cd.tactics.length; ti2++) {
+          var tn2 = cd.tactics[ti2].tactic;
+          if (tn2 === 'No Change') continue;
+          tacticBreakdown[tn2] = (tacticBreakdown[tn2] || 0) + impact;
+        }
+      }
+
+      var sortedLevers = Object.entries(tacticBreakdown)
+        .sort(function (a, b) { return b[1] - a[1]; });
+      if (!sortedLevers.length) continue;
+
+      var leverTotal = sortedLevers.reduce(function (s, l) { return s + l[1]; }, 0) || 1;
+      var topLever = sortedLevers[0];
+      var topLeverPct = Math.round((topLever[1] / leverTotal) * 100);
+      var topLeverName = topLever[0].toLowerCase();
+
+      var commText = pct + '% of schedule gains come from ' + comm.name;
+      if (topLeverPct >= 50) {
+        commText += ', driven primarily by ' + topLeverName;
+      } else if (sortedLevers.length >= 2) {
+        commText += ', split between ' + topLeverName + ' and ' + sortedLevers[1][0].toLowerCase();
+      }
+
+      insights.push({
+        tactic: sortedLevers[0][0],
+        text: commText,
+        days: null,
+        isCommodityInsight: true,
+      });
+    }
+
     return insights;
   };
 
