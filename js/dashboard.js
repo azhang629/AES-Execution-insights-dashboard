@@ -395,16 +395,21 @@
   function buildMilestoneOptions(baseline, optimized) {
     var bMs = baseline.milestones || {};
     var oMs = optimized.milestones || {};
-    var keys = {};
-    Object.keys(bMs).forEach(function (k) { keys[k] = true; });
-    Object.keys(oMs).forEach(function (k) { keys[k] = true; });
 
-    var order = ['SC', 'MC', 'COD', 'END'];
-    var options = [];
-    order.forEach(function (k) {
-      if (!keys[k]) return;
-      var bInfo = bMs[k], oInfo = oMs[k];
-      var label = (bInfo || oInfo).label;
+    function findByName(milestones, name) {
+      var normalized = (name || '').toLowerCase().trim();
+      var keys = Object.keys(milestones);
+      for (var fi = 0; fi < keys.length; fi++) {
+        var ms = milestones[keys[fi]];
+        if (ms && ms.task && (ms.task.task_name || '').toLowerCase().trim() === normalized) return ms;
+      }
+      return null;
+    }
+
+    function makeOption(k, bInfo, oInfo) {
+      var info = bInfo || oInfo;
+      if (!info) return null;
+      var label = info.label;
       var bDate = bInfo ? bInfo.date : null;
       var oDate = oInfo ? oInfo.date : null;
       var dateHint = '';
@@ -412,8 +417,54 @@
       else if (bDate) dateHint = ' (B: ' + fmtDate(bDate) + ')';
       else if (oDate) dateHint = ' (O: ' + fmtDate(oDate) + ')';
       var hasBoth = !!(bInfo && bInfo.task && oInfo && oInfo.task);
-      options.push({ key: k, label: label + dateHint, available: k === 'END' || hasBoth });
+      return { key: k, label: label + dateHint, available: k === 'END' || hasBoth };
+    }
+
+    var pinnedOrder = ['SC', 'MC', 'COD'];
+    var options = [];
+    pinnedOrder.forEach(function (k) {
+      var opt = makeOption(k, bMs[k], oMs[k]);
+      if (opt) options.push(opt);
     });
+
+    var usedKeys = {};
+    pinnedOrder.forEach(function (k) { usedKeys[k] = true; });
+    usedKeys['END'] = true;
+
+    var seenNames = {};
+    var dynamicOptions = [];
+
+    function collectDynamic(milestones, otherMilestones) {
+      var keys = Object.keys(milestones);
+      for (var di = 0; di < keys.length; di++) {
+        var k = keys[di];
+        if (usedKeys[k]) continue;
+        var ms = milestones[k];
+        if (!ms || !ms.task || ms.pinned) continue;
+        var name = (ms.task.task_name || '').toLowerCase().trim();
+        if (seenNames[name]) continue;
+        seenNames[name] = true;
+        var otherMs = findByName(otherMilestones, ms.task.task_name);
+        dynamicOptions.push({ key: k, bInfo: ms, oInfo: otherMs, date: ms.date });
+      }
+    }
+    collectDynamic(bMs, oMs);
+    collectDynamic(oMs, bMs);
+
+    dynamicOptions.sort(function (a, b) {
+      var ad = a.date || new Date(0);
+      var bd = b.date || new Date(0);
+      return ad - bd;
+    });
+
+    dynamicOptions.forEach(function (d) {
+      var opt = makeOption(d.key, d.bInfo, d.oInfo);
+      if (opt) options.push(opt);
+    });
+
+    var endOpt = makeOption('END', bMs['END'], oMs['END']);
+    if (endOpt) options.push(endOpt);
+
     return options;
   }
 
@@ -427,7 +478,7 @@
     return 'END';
   }
 
-  function milestoneTaskId(sched, key) {
+  function milestoneTaskId(sched, key, refSched) {
     var ms = (sched.milestones || {})[key];
     if (ms && ms.task) return ms.task.task_id;
     if (key === 'END') {
@@ -437,6 +488,17 @@
         if (tasks[i].early_end && (!latest || tasks[i].early_end > latest.early_end)) latest = tasks[i];
       }
       return latest ? latest.task_id : null;
+    }
+    if (refSched) {
+      var refMs = (refSched.milestones || {})[key];
+      if (refMs && refMs.task) {
+        var refName = (refMs.task.task_name || '').toLowerCase().trim();
+        var byName = sched.taskByName || {};
+        var nameKeys = Object.keys(byName);
+        for (var ni = 0; ni < nameKeys.length; ni++) {
+          if (nameKeys[ni].toLowerCase().trim() === refName) return byName[nameKeys[ni]].task_id;
+        }
+      }
     }
     return null;
   }
@@ -483,8 +545,8 @@
   }
 
   function rerunCPMForMilestone(baseline, optimized, key) {
-    var bMsId = milestoneTaskId(baseline, key);
-    var oMsId = milestoneTaskId(optimized, key);
+    var bMsId = milestoneTaskId(baseline, key, optimized);
+    var oMsId = milestoneTaskId(optimized, key, baseline);
     ATT.runCPM(baseline, bMsId);
     ATT.runCPM(optimized, oMsId);
   }

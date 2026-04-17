@@ -244,10 +244,39 @@
     sched.substDate = sched.scTask ? (sched.scTask.early_end || sched.scTask.early_start) : null;
 
     sched.milestones = {};
-    if (sched.scTask)  sched.milestones['SC']  = { task: sched.scTask,  label: 'Substantial Completion', date: sched.substDate };
-    if (sched.mcTask)  sched.milestones['MC']  = { task: sched.mcTask,  label: 'Mechanical Completion',  date: sched.mcDate };
-    if (sched.codTask) sched.milestones['COD'] = { task: sched.codTask, label: 'Commercial Operation',   date: sched.codDate };
-    sched.milestones['END'] = { task: null, label: 'Project End (latest task)', date: sched.projectEnd };
+    if (sched.scTask)  sched.milestones['SC']  = { task: sched.scTask,  label: 'Substantial Completion', date: sched.substDate, pinned: true };
+    if (sched.mcTask)  sched.milestones['MC']  = { task: sched.mcTask,  label: 'Mechanical Completion',  date: sched.mcDate, pinned: true };
+    if (sched.codTask) sched.milestones['COD'] = { task: sched.codTask, label: 'Commercial Operation',   date: sched.codDate, pinned: true };
+
+    var msUsed = {};
+    if (sched.scTask)  msUsed[sched.scTask.task_id] = true;
+    if (sched.mcTask)  msUsed[sched.mcTask.task_id] = true;
+    if (sched.codTask) msUsed[sched.codTask.task_id] = true;
+
+    var allMilestones = [];
+    for (var msi = 0; msi < tasks.length; msi++) {
+      var mt = tasks[msi];
+      if (msUsed[mt.task_id]) continue;
+      var isMilestone = false;
+      var mtn = (mt.task_name || '').toLowerCase();
+      if (mt.duration_hr === 0 && mt.cal_duration_hr === 0) isMilestone = true;
+      if (/milestone/i.test(mt.task_name)) isMilestone = true;
+      if (/\bcompletion\b|\bstart\b.*project|\bend\b.*project|\bnotice.to.proceed|\bntp\b|\bfntp\b/i.test(mt.task_name)) isMilestone = true;
+      if (isMilestone && mt.early_end) {
+        allMilestones.push(mt);
+      }
+    }
+    allMilestones.sort(function (a, b) {
+      return (a.early_end || a.early_start) - (b.early_end || b.early_start);
+    });
+    for (var ami = 0; ami < allMilestones.length; ami++) {
+      var amTask = allMilestones[ami];
+      var amKey = 'MS_' + ami;
+      var amName = (amTask.task_name || '').replace(/_/g, ' ').trim();
+      sched.milestones[amKey] = { task: amTask, label: amName, date: amTask.early_end || amTask.early_start, pinned: false };
+    }
+
+    sched.milestones['END'] = { task: null, label: 'Project End (latest task)', date: sched.projectEnd, pinned: true };
 
     sched.projectName = name.replace(/_[0-9a-f-]{36}\.csv$/i, '').replace(/_/g, ' ').trim() || name;
 
