@@ -414,10 +414,10 @@
       var oDate = oInfo ? oInfo.date : null;
       var dateHint = '';
       if (bDate && oDate) dateHint = ' (' + fmtDate(bDate) + ' / ' + fmtDate(oDate) + ')';
-      else if (bDate) dateHint = ' (B: ' + fmtDate(bDate) + ')';
-      else if (oDate) dateHint = ' (O: ' + fmtDate(oDate) + ')';
-      var hasBoth = !!(bInfo && bInfo.task && oInfo && oInfo.task);
-      return { key: k, label: label + dateHint, available: k === 'END' || hasBoth };
+      else if (bDate) dateHint = ' (' + fmtDate(bDate) + ')';
+      else if (oDate) dateHint = ' (' + fmtDate(oDate) + ')';
+      var hasAny = !!((bInfo && bInfo.task) || (oInfo && oInfo.task));
+      return { key: k, label: label + dateHint, available: k === 'END' || hasAny };
     }
 
     var pinnedOrder = ['SC', 'MC', 'COD'];
