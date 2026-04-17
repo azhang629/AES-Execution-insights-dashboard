@@ -375,10 +375,9 @@
       var bGroups = findConcurrentGroups(allWithDates, 'bStart', 'bEnd');
       var oGroups = findConcurrentGroups(allWithDates, 'oStart', 'oEnd');
 
-      var moreBlocks = oConc.maxConcurrent > bConc.maxConcurrent;
-      var parLabel = moreBlocks
-        ? 'Deploy ' + fCrew + ' across more blocks simultaneously — up to ' + oConc.maxConcurrent + ' blocks under construction at once vs ' + bConc.maxConcurrent + ' in baseline (' + oConc.overlappingBlocks + ' of ' + oConc.totalBlocks + ' blocks overlap with another)'
-        : 'Deploy ' + fCrew + ' across multiple blocks simultaneously — up to ' + oConc.maxConcurrent + ' blocks under construction at once (' + oConc.overlappingBlocks + ' of ' + oConc.totalBlocks + ' blocks overlap with another, vs ' + bConc.overlappingBlocks + ' in baseline)';
+      var parLabel = fCrew + ' must staff up to ' + oConc.maxConcurrent + ' active workfronts at the same time' +
+        (bConc.maxConcurrent !== oConc.maxConcurrent ? ' (baseline: ' + bConc.maxConcurrent + ')' : '') +
+        ' — ' + oConc.overlappingBlocks + ' of ' + oConc.totalBlocks + ' blocks share time with at least one other block';
       levers.push({
         type: 'parallel',
         shortLabel: 'Parallel Execution',

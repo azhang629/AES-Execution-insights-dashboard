@@ -258,26 +258,35 @@
     }
 
     if (lever.type === 'parallel') {
-      function renderParGroups(groups, label) {
+      var bConc = lever.baselineConcurrency || {};
+      var oConc = lever.optimizedConcurrency || {};
+      function renderParGroups(groups, label, maxConc) {
         if (!groups || !groups.length) return '<div style="color:var(--text-dim);font-size:11px">No concurrent blocks</div>';
         return '<div class="seq-track" style="margin-bottom:6px;align-items:flex-start"><span class="seq-track-label" style="min-width:70px;flex-shrink:0">' + label + '</span>' +
           '<div style="overflow-x:auto;max-width:100%;padding-bottom:4px">' +
           '<div class="seq-pills" style="flex-wrap:nowrap;gap:4px;min-width:max-content">' +
           groups.map(function (g) {
-            var cls = g.blocks.length > 1 ? 'seq-earlier' : 'seq-same';
+            var isPeak = g.blocks.length >= maxConc && maxConc > 1;
+            var cls = g.blocks.length > 1 ? (isPeak ? 'seq-peak' : 'seq-earlier') : 'seq-same';
             return '<span class="seq-pill ' + cls + '" style="padding:3px 8px;font-size:11px;white-space:nowrap">' +
               g.blocks.join(' + ') +
             '</span>';
           }).join('<span style="color:var(--text-dim);margin:0 2px;flex-shrink:0">\u2192</span>') +
           '</div></div></div>';
       }
-      return '<div class="seq-legend" style="margin-bottom:8px">' +
-          '<span class="seq-pill seq-same" style="padding:2px 8px;font-size:10px">Sequential (1 block)</span>' +
-          '<span class="seq-pill seq-earlier" style="padding:2px 8px;font-size:10px">Parallel (2+ blocks)</span>' +
+      var summaryHtml = '<div style="display:flex;gap:24px;margin-bottom:10px;font-size:12px">' +
+        '<div><span style="color:var(--text-muted)">Baseline peak:</span> <strong style="color:var(--text-bright)">' + (bConc.maxConcurrent || 0) + ' workfronts</strong> at once</div>' +
+        '<div><span style="color:var(--text-muted)">Optimized peak:</span> <strong style="color:var(--text-bright)">' + (oConc.maxConcurrent || 0) + ' workfronts</strong> at once</div>' +
+      '</div>';
+      return summaryHtml +
+        '<div class="seq-legend" style="margin-bottom:8px">' +
+          '<span class="seq-pill seq-same" style="padding:2px 8px;font-size:10px">1 block (sequential)</span>' +
+          '<span class="seq-pill seq-earlier" style="padding:2px 8px;font-size:10px">2+ blocks (parallel)</span>' +
+          '<span class="seq-pill seq-peak" style="padding:2px 8px;font-size:10px">Peak concurrency</span>' +
         '</div>' +
         '<div class="lever-reseq-visual">' +
-          renderParGroups(lever.baselineGroups, 'Baseline') +
-          renderParGroups(lever.optimizedGroups, 'Optimized') +
+          renderParGroups(lever.baselineGroups, 'Baseline', bConc.maxConcurrent || 0) +
+          renderParGroups(lever.optimizedGroups, 'Optimized', oConc.maxConcurrent || 0) +
         '</div>';
     }
 
