@@ -352,20 +352,46 @@
       }
 
       function findConcurrentGroups(tasks, startKey, endKey) {
-        var sorted = tasks.filter(function (d) { return d[startKey] && d[endKey]; })
-          .sort(function (a, b) { return a[startKey] - b[startKey]; });
-        var groups = [];
-        var cur = null;
-        for (var ci = 0; ci < sorted.length; ci++) {
-          var t = sorted[ci];
-          var blk = blockTag(t) || shortName(t.task_name);
-          if (!cur || t[startKey] >= cur.end) {
-            cur = { blocks: [blk], start: t[startKey], end: t[endKey] };
-            groups.push(cur);
-          } else {
-            if (cur.blocks.indexOf(blk) < 0) cur.blocks.push(blk);
-            if (t[endKey] > cur.end) cur.end = t[endKey];
+        var blockSpans = {};
+        for (var i = 0; i < tasks.length; i++) {
+          var t = tasks[i];
+          var blk = blockTag(t);
+          if (!blk || !t[startKey] || !t[endKey]) continue;
+          var s = t[startKey].getTime(), e = t[endKey].getTime();
+          if (!blockSpans[blk]) { blockSpans[blk] = { start: s, end: e }; }
+          else {
+            if (s < blockSpans[blk].start) blockSpans[blk].start = s;
+            if (e > blockSpans[blk].end) blockSpans[blk].end = e;
           }
+        }
+        var blocks = Object.keys(blockSpans);
+        if (!blocks.length) return [];
+
+        var events = [];
+        for (var j = 0; j < blocks.length; j++) {
+          events.push({ time: blockSpans[blocks[j]].start, block: blocks[j], delta: 1 });
+          events.push({ time: blockSpans[blocks[j]].end + 1, block: blocks[j], delta: -1 });
+        }
+        events.sort(function (a, b) { return a.time - b.time || b.delta - a.delta; });
+
+        var active = {};
+        var groups = [];
+        var lastSnap = null;
+
+        for (var k = 0; k < events.length; k++) {
+          var ev = events[k];
+          if (ev.delta > 0) active[ev.block] = true;
+          else delete active[ev.block];
+
+          var nextTime = (k + 1 < events.length) ? events[k + 1].time : null;
+          if (nextTime !== null && nextTime === ev.time) continue;
+
+          var current = Object.keys(active).sort();
+          if (!current.length) { lastSnap = null; continue; }
+          var key = current.join('|');
+          if (key === lastSnap) continue;
+          lastSnap = key;
+          groups.push({ blocks: current });
         }
         return groups;
       }
