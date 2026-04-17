@@ -232,7 +232,18 @@
     }
 
     if (lever.type === 'execution_path' && lever.details) {
-      return lever.details.map(function (d) {
+      var epFiltered = lever.details.filter(function (d) {
+        return d.predComparison.some(function (p) { return p.status !== 'same'; });
+      });
+      if (epFiltered.length === 0) {
+        return '<div style="color:var(--text-dim);font-size:12px;padding:6px 0">All predecessor relationships matched after name normalization — no actionable changes detected</div>';
+      }
+      var epLegend = '<div class="seq-legend" style="margin-bottom:10px">' +
+        '<span class="pred-same" style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px">Unchanged</span>' +
+        '<span class="pred-new" style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px">New predecessor</span>' +
+        '<span class="pred-deleted" style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px">Removed predecessor</span>' +
+      '</div>';
+      return epLegend + epFiltered.map(function (d) {
         var predHtml = d.predComparison.map(function (p) {
           var cls = 'pred-' + p.status;
           var label = p.status === 'same' ? '' : (p.status === 'deleted' ? ' (removed)' : ' (new)');

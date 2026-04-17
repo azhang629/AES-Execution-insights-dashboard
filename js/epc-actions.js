@@ -292,14 +292,19 @@
           predComparison: comparePredecessors(d, R.baseline, R.optimized),
         };
       });
-      var epLabel = 'Update the driving logic for ' + pathDiffs.length + ' ' + fCrew + ' activit' + (pathDiffs.length === 1 ? 'y' : 'ies') + ' — predecessors have been added, removed, or swapped (often a result of workfront resequencing or idle time reduction changes)';
-      levers.push({
-        type: 'execution_path',
-        shortLabel: 'Execution Path',
-        label: epLabel,
-        details: epDetails,
-        count: pathDiffs.length,
+      var epWithChanges = epDetails.filter(function (d) {
+        return d.predComparison.some(function (p) { return p.status !== 'same'; });
       });
+      if (epWithChanges.length > 0) {
+        var epLabel = 'Update the driving logic for ' + epWithChanges.length + ' ' + fCrew + ' activit' + (epWithChanges.length === 1 ? 'y' : 'ies') + ' — predecessors have been added, removed, or swapped (often a result of workfront resequencing or idle time reduction changes)';
+        levers.push({
+          type: 'execution_path',
+          shortLabel: 'Execution Path',
+          label: epLabel,
+          details: epDetails,
+          count: epWithChanges.length,
+        });
+      }
     }
 
     // 3. Parallel Execution — sweep-line block concurrency + group detail
