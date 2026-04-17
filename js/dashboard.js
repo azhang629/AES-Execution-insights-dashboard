@@ -217,7 +217,10 @@
         tableRows += '<tr><td>' + block + '</td><td>' + bPos + '</td><td>' + oPos + '</td><td><span class="' + changeCls + '">' + changeTxt + '</span></td></tr>';
       });
 
-      return '<div class="seq-legend">' +
+      return '<div style="color:var(--text-muted);font-size:11px;font-style:italic;margin-bottom:8px">' +
+        'Order in which this crew moves through blocks — compare baseline vs optimized to see what shifted.' +
+      '</div>' +
+      '<div class="seq-legend">' +
         '<span class="seq-pill seq-same" style="padding:2px 8px;font-size:10px">Same position</span>' +
         '<span class="seq-pill seq-earlier" style="padding:2px 8px;font-size:10px">Moved earlier</span>' +
         '<span class="seq-pill seq-later" style="padding:2px 8px;font-size:10px">Moved later</span>' +
@@ -238,12 +241,15 @@
       if (epFiltered.length === 0) {
         return '<div style="color:var(--text-dim);font-size:12px;padding:6px 0">All predecessor relationships matched after name normalization — no actionable changes detected</div>';
       }
+      var epExplain = '<div style="color:var(--text-muted);font-size:11px;font-style:italic;margin-bottom:8px">' +
+        'Each row is a task whose predecessors changed between baseline and optimized.' +
+      '</div>';
       var epLegend = '<div class="seq-legend" style="margin-bottom:10px">' +
         '<span class="pred-same" style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px">Unchanged</span>' +
         '<span class="pred-new" style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px">New predecessor</span>' +
         '<span class="pred-deleted" style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px">Removed predecessor</span>' +
       '</div>';
-      return epLegend + epFiltered.map(function (d) {
+      return epExplain + epLegend + epFiltered.map(function (d) {
         var predHtml = d.predComparison.map(function (p) {
           var cls = 'pred-' + p.status;
           var label = p.status === 'same' ? '' : (p.status === 'deleted' ? ' (removed)' : ' (new)');
@@ -294,7 +300,10 @@
     }
 
     if (lever.type === 'duration' && lever.details) {
-      return '<div class="epc-crew-table"><table>' +
+      return '<div style="color:var(--text-muted);font-size:11px;font-style:italic;margin-bottom:8px">' +
+        'Activities where adding more crew reduces the task duration.' +
+      '</div>' +
+      '<div class="epc-crew-table"><table>' +
         '<thead><tr><th>Activity</th><th>Block</th><th>Base Crew</th><th>Opt Crew</th><th>Base Dur</th><th>Opt Dur</th><th>Saved</th></tr></thead><tbody>' +
         lever.details.map(function (d) {
           return '<tr><td>' + d.taskName + '</td><td>' + (d.block || '\u2014') + '</td>' +
@@ -306,7 +315,7 @@
     }
 
     if (lever.type === 'handoff' && lever.details) {
-      return '<div style="color:var(--text-dim);font-size:11px;font-style:italic;padding:4px 0 8px">Note: Only showing activities where (1) the driving predecessor is the same in both schedules and (2) the wait time before the activity starts dropped by more than 1 day.</div>' +
+      return '<div style="color:var(--text-muted);font-size:11px;font-style:italic;margin-bottom:8px">Activities where the wait time between a task and its predecessor was significantly reduced.</div>' +
         '<div class="epc-crew-table"><table>' +
         '<thead><tr><th>Activity</th><th>Predecessor</th><th>Why</th></tr></thead><tbody>' +
         lever.details.map(function (d) {
